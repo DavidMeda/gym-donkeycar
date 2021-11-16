@@ -11,24 +11,26 @@ import signal
 import sys
 import uuid
 from collections import deque
-
-
+import pickle
 import cv2
 import gym
-from tensorflow.python.keras import metrics
 import gym_donkeycar
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Activation, Conv2D, Dense, Flatten
+from tensorflow.keras.layers import Activation, Conv2D, Conv3D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import *
+from donkeycar.pipeline.database import PilotDatabase
 
-EPISODES = 500
+EPISODES = 200
 # img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
 # Convert image into Black and white
+# img_channels = 4  # We stack 4 frames
 img_channels = 4  # We stack 4 frames
+
 
 
 class DQNAgent:
@@ -69,17 +71,16 @@ class DQNAgent:
 
     def build_model(self):
         model = Sequential()
-        model.add(
-            Conv2D(24, (5, 5), strides=(2, 2), padding="same", input_shape=(img_cols, img_rows, img_channels))
-        )  # 80*80*4
+        model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",
+                  input_shape=(img_cols, img_rows, 3, img_channels)))  # 80*80*4
         model.add(Activation("relu"))
-        model.add(Conv2D(32, (5, 5), strides=(2, 2), padding="same"))
+        model.add(Conv3D(32, (5, 5,5), strides=(2, 2,2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv2D(64, (5, 5), strides=(2, 2), padding="same"))
+        model.add(Conv3D(64, (5, 5,5), strides=(2, 2,2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv2D(64, (3, 3), strides=(2, 2), padding="same"))
+        model.add(Conv3D(64, (3, 3,3), strides=(2, 2,2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv2D(64, (3, 3), strides=(1, 1), padding="same"))
+        model.add(Conv3D(64, (3, 3,3), strides=(1, 1,1), padding="same"))
         model.add(Activation("relu"))
         model.add(Flatten())
         model.add(Dense(512))
@@ -89,9 +90,10 @@ class DQNAgent:
         model.add(Dense(15, activation="linear"))
 
         adam = Adam(lr=self.learning_rate)
-        model.compile(loss="mse", optimizer=adam)
+        model.compile(loss="mse", optimizer=adam, metrics=['accuracy'])
 
         return model
+    
 
     def rgb2gray(self, rgb):
         """
@@ -100,8 +102,12 @@ class DQNAgent:
         return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
     def process_image(self, obs):
-        obs = self.rgb2gray(obs)
+        print(obs.shape)
+        # print(obs.min(), obs.max())
+        # obs = self.rgb2gray(obs)
         obs = cv2.resize(obs, (img_rows, img_cols))
+        print(obs.shape)
+        # print(obs.min(),obs.max())
         return obs
 
     def update_target_model(self):
@@ -132,8 +138,9 @@ class DQNAgent:
         batch_size = min(self.batch_size, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
-        state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
+        state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch) #unpack argument
         state_t = np.concatenate(state_t)
+        
         state_t1 = np.concatenate(state_t1)
         targets = self.model.predict(state_t)
         self.max_Q = np.max(targets[0])
@@ -145,8 +152,8 @@ class DQNAgent:
             else:
                 a = np.argmax(target_val[i])
                 targets[i][action_t[i]] = reward_t[i] + self.discount_factor * (target_val_[i][a])
-
-        self.model.train_on_batch(state_t, targets)
+        result = self.model.train_on_batch(state_t, targets)
+        return result
 
     def load_model(self, name):
         self.model.load_weights(name)
@@ -224,7 +231,6 @@ def run_ddqn(args):
     }
 
     # Construct gym environment. Starts the simulator if path is given.
-    print(args.env_name)
     env = gym.make(args.env_name, conf=conf)
 
     # not working on windows...
@@ -247,7 +253,8 @@ def run_ddqn(args):
         throttle = args.throttle  # Set throttle as constant value
 
         episodes = []
-        
+        metrics_episode = []
+        metrics_tot = []
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
@@ -255,7 +262,7 @@ def run_ddqn(args):
         for e in range(EPISODES):
 
             print("Episode: ", e)
-
+            env.render(mode="ansi")
             done = False
             obs = env.reset()
 
@@ -263,10 +270,10 @@ def run_ddqn(args):
 
             x_t = agent.process_image(obs)
 
-            s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
+            s_t = np.stack((x_t, x_t, x_t, x_t), axis=3)
             # In Keras, need to reshape
-            s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
-
+            s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
+            # print("s_t ",s_t.shape)
             while not done:
 
                 # Get action for the current state and go one step in environment
@@ -275,18 +282,19 @@ def run_ddqn(args):
                 next_obs, reward, done, info = env.step(action)
 
                 x_t1 = agent.process_image(next_obs)
-
-                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  # 1x80x80x1
-                s_t1 = np.append(x_t1, s_t[:, :, :, :3], axis=3)  # 1x80x80x4
-
+                
+                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  # 1x80x80x1
+                # print("x_t1 ", x_t1.shape)
+                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)  # 1x80x80x4
+                # print("s_t1 ", s_t1.shape)
                 # Save the sample <s, a, r, s'> to the replay memory
+                # q-table
                 agent.replay_memory(s_t, np.argmax(linear_bin(steering)), reward, s_t1, done)
                 agent.update_epsilon()
 
                 if agent.train:
                     result = agent.train_replay()
-                    
-
+                    metrics_episode.append(result)
                 s_t = s_t1
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
@@ -312,12 +320,12 @@ def run_ddqn(args):
                     agent.update_target_model()
 
                     episodes.append(e)
-                    
 
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        
+                        metrics_tot.append(metrics_episode)
+                        metrics_episode = []
 
                     print(
                         "episode:",
@@ -329,8 +337,8 @@ def run_ddqn(args):
                         " episode length:",
                         episode_len,
                     )
-        
-        
+        with open(args.model.replace(".h5", "")+str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics_tot, fp)
 
     except KeyboardInterrupt:
         print("stopping run...")
@@ -355,7 +363,6 @@ if __name__ == "__main__":
         "donkey-circuit-launch-track-v0",
     ]
 
-
     parser = argparse.ArgumentParser(description="ddqn")
     parser.add_argument(
         "--sim",
@@ -370,7 +377,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list
     )
-    
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     run_ddqn(args)
