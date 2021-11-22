@@ -7,6 +7,10 @@ Donkey Car OpenAI Gym
   - Free software: MIT license
   - Documentation: <https://gym-donkeycar.readthedocs.io/en/latest/>
 
+#### My usage
+
+This project is used for my Master degree thesis.
+
 ## Installation
 
 Download simulator binaries: https://github.com/tawnkramer/gym-donkeycar/releases

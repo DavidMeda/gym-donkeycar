@@ -10,26 +10,35 @@ import random
 import signal
 import sys
 import uuid
+import time
 from collections import deque
-
-
+import pickle
 import cv2
 import gym
 from tensorflow.python.keras import metrics
+from gym.envs.registration import register
 import gym_donkeycar
+# from gym_donkeycar.envs.donkey_env import GeneratedTrackEnv
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Activation, Conv2D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import *
 
-EPISODES = 500
-# img_rows, img_cols = 80, 80
-img_rows, img_cols = 120, 160
+EPISODES = 2
+img_rows, img_cols = 80, 80
+# img_rows, img_cols = 120, 160
 # Convert image into Black and white
 img_channels = 4  # We stack 4 frames
 
+
+class MyLoss(Loss):
+    def __init__(self):
+        super().__init__()
+    def call(self, y_true, y_pred):
+        return (1 + tf.math.exp(tf.abs(y_true))) * tf.abs(y_true - y_pred)
 
 class DQNAgent:
     def __init__(self, state_size, action_space, train=True):
@@ -89,7 +98,7 @@ class DQNAgent:
         model.add(Dense(15, activation="linear"))
 
         adam = Adam(lr=self.learning_rate)
-        model.compile(loss="mse", optimizer=adam)
+        model.compile(loss="mae", optimizer=adam)
 
         return model
 
@@ -207,14 +216,16 @@ def run_ddqn(args):
     sess = tf.Session(config=config)
     K.set_session(sess)
     '''
-
+    # register(id="donkey-generated-track-v0", entry_point="gym_donkeycar.envs.donkey_env:GeneratedTrackEnv")
+    t = time.time()
     conf = {
         "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "remote",
         "host": "127.0.0.1",
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
-        "car_name": "me",
+        "car_name": "Shumacher",
         "font_size": 100,
         "racer_name": "DDQN",
         "country": "USA",
@@ -222,20 +233,20 @@ def run_ddqn(args):
         "guid": str(uuid.uuid4()),
         "max_cte": 10,
     }
+  
 
     # Construct gym environment. Starts the simulator if path is given.
-    print(args.env_name)
     env = gym.make(args.env_name, conf=conf)
 
     # not working on windows...
-    def signal_handler(signal, frame):
-        print("catching ctrl+c")
-        env.unwrapped.close()
-        sys.exit(0)
+    # def signal_handler(signal, frame):
+    #     print("catching ctrl+c")
+    #     env.unwrapped.close()
+    #     sys.exit(0)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGABRT, signal_handler)
+    # signal.signal(signal.SIGINT, signal_handler)
+    # signal.signal(signal.SIGTERM, signal_handler)
+    # signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
     state_size = (img_rows, img_cols, img_channels)
@@ -247,7 +258,8 @@ def run_ddqn(args):
         throttle = args.throttle  # Set throttle as constant value
 
         episodes = []
-        
+        metrics_episode = []
+        metrics_tot = []
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
@@ -255,7 +267,6 @@ def run_ddqn(args):
         for e in range(EPISODES):
 
             print("Episode: ", e)
-
             done = False
             obs = env.reset()
 
@@ -268,7 +279,7 @@ def run_ddqn(args):
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
 
             while not done:
-
+                env.render()
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
@@ -285,7 +296,7 @@ def run_ddqn(args):
 
                 if agent.train:
                     result = agent.train_replay()
-                    
+                    metrics_episode.append(result)
 
                 s_t = s_t1
                 agent.t = agent.t + 1
@@ -317,7 +328,8 @@ def run_ddqn(args):
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        
+                        metrics_tot.append(metrics_episode)
+                        metrics_episode = []
 
                     print(
                         "episode:",
@@ -329,9 +341,10 @@ def run_ddqn(args):
                         " episode length:",
                         episode_len,
                     )
+        print("time: ", time.time()-t)
+        # with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
+        #     pickle.dump(metrics_tot, fp)
         
-        
-
     except KeyboardInterrupt:
         print("stopping run...")
     finally:

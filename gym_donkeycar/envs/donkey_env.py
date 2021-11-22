@@ -39,7 +39,7 @@ class DonkeyEnv(gym.Env):
     OpenAI Gym Environment for Donkey
     """
 
-    metadata = {"render.modes": ["human", "rgb_array", "ansi"]}
+    metadata = {"render.modes": ["human", "rgb_array"]}
 
     ACTION_NAMES = ["steer", "throttle"]
     STEER_LIMIT_LEFT = -1.0
@@ -49,7 +49,10 @@ class DonkeyEnv(gym.Env):
     VAL_PER_PIXEL = 255
 
     def __init__(self, level, conf=None):
+        super().__init__()
+        print("\n>>>>>>>>>>>>>>>>>>>>>>\n")
         print("starting DonkeyGym env")
+        
         self.viewer = None
         self.proc = None
 
@@ -72,8 +75,8 @@ class DonkeyEnv(gym.Env):
         if "exe_path" in conf:
             self.proc = DonkeyUnityProcess()
             # the unity sim server will bind to the host ip given
-            self.proc.start(conf["exe_path"], host="0.0.0.0", port=conf["port"])
-
+            self.proc.start(conf["exe_path"], headless=True, host="0.0.0.0", port=conf["port"])
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             # wait for simulator to startup and begin listening
             time.sleep(conf["start_delay"])
 
@@ -125,15 +128,16 @@ class DonkeyEnv(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
+        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         self.viewer.reset()
         observation, reward, done, info = self.viewer.observe()
         time.sleep(1)
         return observation
 
-    def render(self, mode="human", close=False):
+    def render(self, mode="ansi", close=False):
         if close:
             self.viewer.quit()
-
+        # return self.render(mode="ansi")
         return self.viewer.render(mode)
 
     def is_game_over(self):

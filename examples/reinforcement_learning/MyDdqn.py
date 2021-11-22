@@ -28,9 +28,16 @@ EPISODES = 200
 # img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
 # Convert image into Black and white
-# img_channels = 4  # We stack 4 frames
-img_channels = 4  # We stack 4 frames
+# img_frames = 4  # We stack 4 frames
+img_frames = 4  # We stack 4 frames
 
+
+class MyLoss(Loss):
+    def __init__(self):
+        super().__init__()
+
+    def call(self, y_true, y_pred):
+        return (1 + tf.math.exp(tf.abs(y_true))) * tf.abs(y_true - y_pred)
 
 
 class DQNAgent:
@@ -71,8 +78,7 @@ class DQNAgent:
 
     def build_model(self):
         model = Sequential()
-        model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",
-                  input_shape=(img_cols, img_rows, 3, img_channels)))  # 80*80*4
+        model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",input_shape=(img_cols, img_rows, 3, img_frames)))  # 80*80*4
         model.add(Activation("relu"))
         model.add(Conv3D(32, (5, 5,5), strides=(2, 2,2), padding="same"))
         model.add(Activation("relu"))
@@ -233,18 +239,18 @@ def run_ddqn(args):
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
 
-    # not working on windows...
-    def signal_handler(signal, frame):
-        print("catching ctrl+c")
-        env.unwrapped.close()
-        sys.exit(0)
+    # # not working on windows...
+    # def signal_handler(signal, frame):
+    #     print("catching ctrl+c")
+    #     env.unwrapped.close()
+    #     sys.exit(0)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGABRT, signal_handler)
+    # signal.signal(signal.SIGINT, signal_handler)
+    # signal.signal(signal.SIGTERM, signal_handler)
+    # signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
-    state_size = (img_rows, img_cols, img_channels)
+    state_size = (img_rows, img_cols, img_frames)
     action_space = env.action_space  # Steering and Throttle
 
     try:
@@ -262,7 +268,6 @@ def run_ddqn(args):
         for e in range(EPISODES):
 
             print("Episode: ", e)
-            env.render(mode="ansi")
             done = False
             obs = env.reset()
 
