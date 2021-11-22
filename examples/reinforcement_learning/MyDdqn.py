@@ -14,6 +14,7 @@ from collections import deque
 import pickle
 import cv2
 import gym
+import time
 import gym_donkeycar
 import numpy as np
 import tensorflow as tf
@@ -22,9 +23,10 @@ from tensorflow.keras.layers import Activation, Conv2D, Conv3D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
-from donkeycar.pipeline.database import PilotDatabase
 
-EPISODES = 200
+from gym import wrappers
+
+EPISODES = 2
 # img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
 # Convert image into Black and white
@@ -78,7 +80,8 @@ class DQNAgent:
 
     def build_model(self):
         model = Sequential()
-        model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",input_shape=(img_cols, img_rows, 3, img_frames)))  # 80*80*4
+        model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",
+                  input_shape=(img_rows, img_cols, 3, img_frames)))  # 120*160*3*4
         model.add(Activation("relu"))
         model.add(Conv3D(32, (5, 5,5), strides=(2, 2,2), padding="same"))
         model.add(Activation("relu"))
@@ -101,11 +104,11 @@ class DQNAgent:
         return model
     
 
-    def rgb2gray(self, rgb):
-        """
-        take a numpy rgb image return a new single channel image converted to greyscale
-        """
-        return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
+    # def rgb2gray(self, rgb):
+    #     """
+    #     take a numpy rgb image return a new single channel image converted to greyscale
+    #     """
+    #     return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
     def process_image(self, obs):
         print(obs.shape)
@@ -220,14 +223,16 @@ def run_ddqn(args):
     sess = tf.Session(config=config)
     K.set_session(sess)
     '''
+    t = time.time()
 
     conf = {
-        "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
         "host": "127.0.0.1",
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
-        "car_name": "me",
+        "car_name": "Schumacher",
         "font_size": 100,
         "racer_name": "DDQN",
         "country": "USA",
@@ -238,7 +243,7 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-
+    env = wrappers.Monitor(env, "./models/", video_callable=False , force=True)
     # # not working on windows...
     # def signal_handler(signal, frame):
     #     print("catching ctrl+c")
@@ -272,9 +277,9 @@ def run_ddqn(args):
             obs = env.reset()
 
             episode_len = 0
-
-            x_t = agent.process_image(obs)
-
+            # x_t = agent.process_image(obs)
+            
+            x_t = obs
             s_t = np.stack((x_t, x_t, x_t, x_t), axis=3)
             # In Keras, need to reshape
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
@@ -285,12 +290,13 @@ def run_ddqn(args):
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
                 next_obs, reward, done, info = env.step(action)
+                # print(info)
 
-                x_t1 = agent.process_image(next_obs)
-                
-                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  # 1x80x80x1
+                # x_t1 = agent.process_image(next_obs)
+                x_t1 = next_obs
+                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  
                 # print("x_t1 ", x_t1.shape)
-                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)  # 1x80x80x4
+                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)  
                 # print("s_t1 ", s_t1.shape)
                 # Save the sample <s, a, r, s'> to the replay memory
                 # q-table
@@ -304,26 +310,11 @@ def run_ddqn(args):
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
                 if agent.t % 30 == 0:
-                    print(
-                        "EPISODE",
-                        e,
-                        "TIMESTEP",
-                        agent.t,
-                        "/ ACTION",
-                        action,
-                        "/ REWARD",
-                        reward,
-                        "/ EPISODE LENGTH",
-                        episode_len,
-                        "/ Q_MAX ",
-                        agent.max_Q,
-                    )
-
+                    print("EPISODE",e,"TIMESTEP",agent.t,"/ ACTION",action,"/ REWARD", reward,"/ EPISODE LENGTH",episode_len,"/ Q_MAX ",agent.max_Q,)
+                    print(info)
                 if done:
-
                     # Every episode update the target model to be same with model
                     agent.update_target_model()
-
                     episodes.append(e)
 
                     # Save model for each episode
@@ -332,16 +323,9 @@ def run_ddqn(args):
                         metrics_tot.append(metrics_episode)
                         metrics_episode = []
 
-                    print(
-                        "episode:",
-                        e,
-                        "  memory length:",
-                        len(agent.memory),
-                        "  epsilon:",
-                        agent.epsilon,
-                        " episode length:",
-                        episode_len,
-                    )
+                    print("episode:",e,"  memory length:",len(agent.memory),"  epsilon:",agent.epsilon," episode length:",episode_len,)
+                    
+        print("\n\n Total time training (min): ", (time.time() - t)/60)
         with open(args.model.replace(".h5", "")+str('_metrics.plk'), 'wb') as fp:
             pickle.dump(metrics_tot, fp)
 

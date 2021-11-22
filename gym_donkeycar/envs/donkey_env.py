@@ -50,7 +50,6 @@ class DonkeyEnv(gym.Env):
 
     def __init__(self, level, conf=None):
         super().__init__()
-        print("\n>>>>>>>>>>>>>>>>>>>>>>\n")
         print("starting DonkeyGym env")
         
         self.viewer = None
@@ -76,7 +75,6 @@ class DonkeyEnv(gym.Env):
             self.proc = DonkeyUnityProcess()
             # the unity sim server will bind to the host ip given
             self.proc.start(conf["exe_path"], headless=True, host="0.0.0.0", port=conf["port"])
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             # wait for simulator to startup and begin listening
             time.sleep(conf["start_delay"])
 
@@ -128,7 +126,6 @@ class DonkeyEnv(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
-        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         self.viewer.reset()
         observation, reward, done, info = self.viewer.observe()
         time.sleep(1)

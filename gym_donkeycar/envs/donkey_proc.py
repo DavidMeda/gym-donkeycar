@@ -10,7 +10,6 @@ import subprocess
 class DonkeyUnityProcess(object):
     def __init__(self):
         self.proc1 = None
-        print("PROCESSOOOOOOOOOOOOOOOOOOOOOOOO")
 
     # ------ Launch Unity Env ----------- #
 
@@ -23,9 +22,8 @@ class DonkeyUnityProcess(object):
             print(sim_path, "does not exist. you must start sim manually.")
             return
 
-        port_args = ["--port", str(port), "--host", str(host), "-logFile", "unitylog.txt"]
+        port_args = ["--port", str(port), "--host", str(host)]
 
-        # Launch Unity environment
         # Launch Unity environment
         if headless:
             self.proc1 = subprocess.Popen(
