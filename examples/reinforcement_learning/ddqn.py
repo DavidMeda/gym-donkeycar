@@ -26,6 +26,7 @@ from tensorflow.keras.layers import Activation, Conv2D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
+from gym.wrappers.monitor import Monitor
 
 EPISODES = 2
 img_rows, img_cols = 80, 80
@@ -220,6 +221,7 @@ def run_ddqn(args):
     t = time.time()
     conf = {
         "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "remote",
         "host": "127.0.0.1",
         "port": args.port,

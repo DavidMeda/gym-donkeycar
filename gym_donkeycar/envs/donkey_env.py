@@ -74,6 +74,7 @@ class DonkeyEnv(gym.Env):
         if "exe_path" in conf:
             self.proc = DonkeyUnityProcess()
             # the unity sim server will bind to the host ip given
+            # headless =False disable rendereing
             self.proc.start(conf["exe_path"], headless=True, host="0.0.0.0", port=conf["port"])
             # wait for simulator to startup and begin listening
             time.sleep(conf["start_delay"])
@@ -131,7 +132,7 @@ class DonkeyEnv(gym.Env):
         time.sleep(1)
         return observation
 
-    def render(self, mode="ansi", close=False):
+    def render(self, mode="human", close=False):
         if close:
             self.viewer.quit()
         # return self.render(mode="ansi")

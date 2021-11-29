@@ -23,10 +23,11 @@ from tensorflow.keras.layers import Activation, Conv2D, Conv3D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
+from gym.wrappers.monitor import Monitor
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
-from gym import wrappers
 
-EPISODES = 2
+EPISODES = 1
 # img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
 # Convert image into Black and white
@@ -83,13 +84,13 @@ class DQNAgent:
         model.add(Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same",
                   input_shape=(img_rows, img_cols, 3, img_frames)))  # 120*160*3*4
         model.add(Activation("relu"))
-        model.add(Conv3D(32, (5, 5,5), strides=(2, 2,2), padding="same"))
+        model.add(Conv3D(32, (5, 5, 5), strides=(2, 2, 2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv3D(64, (5, 5,5), strides=(2, 2,2), padding="same"))
+        model.add(Conv3D(64, (5, 5, 5), strides=(2, 2, 2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv3D(64, (3, 3,3), strides=(2, 2,2), padding="same"))
+        model.add(Conv3D(64, (3, 3, 3), strides=(2, 2, 2), padding="same"))
         model.add(Activation("relu"))
-        model.add(Conv3D(64, (3, 3,3), strides=(1, 1,1), padding="same"))
+        model.add(Conv3D(64, (3, 3, 3), strides=(1, 1, 1), padding="same"))
         model.add(Activation("relu"))
         model.add(Flatten())
         model.add(Dense(512))
@@ -102,7 +103,6 @@ class DQNAgent:
         model.compile(loss="mse", optimizer=adam, metrics=['accuracy'])
 
         return model
-    
 
     # def rgb2gray(self, rgb):
     #     """
@@ -147,9 +147,9 @@ class DQNAgent:
         batch_size = min(self.batch_size, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
-        state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch) #unpack argument
+        state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)  # unpack argument
         state_t = np.concatenate(state_t)
-        
+
         state_t1 = np.concatenate(state_t1)
         targets = self.model.predict(state_t)
         self.max_Q = np.max(targets[0])
@@ -173,8 +173,6 @@ class DQNAgent:
 
 
 # Utils Functions #
-
-
 def linear_bin(a):
     """
     Convert a value to a categorical array.
@@ -226,14 +224,15 @@ def run_ddqn(args):
     t = time.time()
 
     conf = {
-        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
+        "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path":"remote",
         "host": "127.0.0.1",
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
         "car_name": "Schumacher",
-        "font_size": 100,
+        "font_size": 30,
         "racer_name": "DDQN",
         "country": "USA",
         "bio": "Learning to drive w DDQN RL",
@@ -243,7 +242,18 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-    env = wrappers.Monitor(env, "./models/", video_callable=False , force=True)
+    env = Monitor(
+        env,
+        directory="./models/",
+        force=True,
+        # video_callable=lambda episode: episode % 5,  # Dump every 5 episodes
+    )
+    name_model = args.model.replace(".h5", "")
+    print(name_model)
+    video = None
+    if args.test:
+        video = VideoRecorder(env, str(name_model) + "_video.mp4")
+
     # # not working on windows...
     # def signal_handler(signal, frame):
     #     print("catching ctrl+c")
@@ -271,33 +281,41 @@ def run_ddqn(args):
             agent.load_model(args.model)
 
         for e in range(EPISODES):
-
             print("Episode: ", e)
             done = False
             obs = env.reset()
-
+            # img = env.render()
             episode_len = 0
             # x_t = agent.process_image(obs)
-            
+
             x_t = obs
             s_t = np.stack((x_t, x_t, x_t, x_t), axis=3)
             # In Keras, need to reshape
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
             # print("s_t ",s_t.shape)
             while not done:
-
+                if args.test:
+                    video.capture_frame()
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
                 next_obs, reward, done, info = env.step(action)
                 # print(info)
-
+                # img = env.render()
+                # print(img.shape)
+                # print(img.min(), img.max())
+                # cv2.imshow("image", img)
+                # cv2.waitKey(0)
+                # cv2.destroyAllWindows()
                 # x_t1 = agent.process_image(next_obs)
                 x_t1 = next_obs
-                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  
-                # print("x_t1 ", x_t1.shape)
-                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)  
-                # print("s_t1 ", s_t1.shape)
+                # print(next_obs.shape)
+                # print(next_obs.min(), next_obs.max())
+                # cv2.imshow("image", next_obs)
+                # cv2.waitKey(0)
+                # cv2.destroyAllWindows()
+                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)
+                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
                 # Save the sample <s, a, r, s'> to the replay memory
                 # q-table
                 agent.replay_memory(s_t, np.argmax(linear_bin(steering)), reward, s_t1, done)
@@ -310,7 +328,8 @@ def run_ddqn(args):
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
                 if agent.t % 30 == 0:
-                    print("EPISODE",e,"TIMESTEP",agent.t,"/ ACTION",action,"/ REWARD", reward,"/ EPISODE LENGTH",episode_len,"/ Q_MAX ",agent.max_Q,)
+                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                          reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
                     print(info)
                 if done:
                     # Every episode update the target model to be same with model
@@ -323,12 +342,15 @@ def run_ddqn(args):
                         metrics_tot.append(metrics_episode)
                         metrics_episode = []
 
-                    print("episode:",e,"  memory length:",len(agent.memory),"  epsilon:",agent.epsilon," episode length:",episode_len,)
-                    
-        print("\n\n Total time training (min): ", (time.time() - t)/60)
-        with open(args.model.replace(".h5", "")+str('_metrics.plk'), 'wb') as fp:
-            pickle.dump(metrics_tot, fp)
+                    print("episode:", e, "  memory length:", len(agent.memory),
+                          "  epsilon:", agent.epsilon, " episode length:", episode_len,)
 
+        print("\n\n Total time training (min): ", (time.time() - t) / 60)
+        with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics_tot, fp)
+        if args.test:
+            video.close()
+        env.close()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
