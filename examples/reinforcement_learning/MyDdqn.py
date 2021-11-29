@@ -222,11 +222,11 @@ def run_ddqn(args):
     K.set_session(sess)
     '''
     t = time.time()
-
+    EPISODES = args.episode
     conf = {
-        "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        # "exe_path":"remote",
+        "exe_path":args.sim,
         "host": "127.0.0.1",
         "port": args.port,
         "body_style": "donkey",
@@ -251,8 +251,8 @@ def run_ddqn(args):
     name_model = args.model.replace(".h5", "")
     print(name_model)
     video = None
-    if args.test:
-        video = VideoRecorder(env, str(name_model) + "_video.mp4")
+    # if args.test:
+    #     video = VideoRecorder(env, str(name_model) + "_video.mp4")
 
     # # not working on windows...
     # def signal_handler(signal, frame):
@@ -294,8 +294,8 @@ def run_ddqn(args):
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
             # print("s_t ",s_t.shape)
             while not done:
-                if args.test:
-                    video.capture_frame()
+                # if args.test:
+                #     video.capture_frame()
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
@@ -348,8 +348,8 @@ def run_ddqn(args):
         print("\n\n Total time training (min): ", (time.time() - t) / 60)
         with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
             pickle.dump(metrics_tot, fp)
-        if args.test:
-            video.close()
+        # if args.test:
+        #     video.close()
         env.close()
     except KeyboardInterrupt:
         print("stopping run...")
@@ -385,9 +385,7 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
-    parser.add_argument(
-        "--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list
-    )
-
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
+    parser.add_argument("--episode", type=int, default=1, help="number of episode for training")
     args = parser.parse_args()
     run_ddqn(args)
