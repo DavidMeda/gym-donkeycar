@@ -24,15 +24,16 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
 from gym.wrappers.monitor import Monitor
-from gym.wrappers.monitoring.video_recorder import VideoRecorder
+from pyvirtualdisplay import Display
 
 
-EPISODES = 1
+
+# EPISODES = 10
 # img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
 # Convert image into Black and white
 # img_frames = 4  # We stack 4 frames
-img_frames = 4  # We stack 4 frames
+# img_frames = 4  # We stack 4 frames
 
 
 class MyLoss(Loss):
@@ -214,15 +215,11 @@ def run_ddqn(args):
     run a DDQN training session, or test it's result, with the donkey simulator
     """
 
-    # only needed if TF==1.13.1
-    '''
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-    K.set_session(sess)
-    '''
     t = time.time()
+    display = Display(visible=False, size=(1400, 900))
+    display.start()
     EPISODES = args.episode
+    img_frames = args.stack_frames
     conf = {
         # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
@@ -242,27 +239,18 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-    env = Monitor(
-        env,
-        directory="./models/",
-        force=True,
-        # video_callable=lambda episode: episode % 5,  # Dump every 5 episodes
-    )
-    name_model = args.model.replace(".h5", "")
-    print(name_model)
-    video = None
-    # if args.test:
-    #     video = VideoRecorder(env, str(name_model) + "_video.mp4")
+    env = Monitor(env, directory="./models/", force=True,)
+
 
     # # not working on windows...
-    # def signal_handler(signal, frame):
-    #     print("catching ctrl+c")
-    #     env.unwrapped.close()
-    #     sys.exit(0)
+    def signal_handler(signal, frame):
+        print("catching ctrl+c")
+        env.unwrapped.close()
+        sys.exit(0)
 
-    # signal.signal(signal.SIGINT, signal_handler)
-    # signal.signal(signal.SIGTERM, signal_handler)
-    # signal.signal(signal.SIGABRT, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
     state_size = (img_rows, img_cols, img_frames)
@@ -289,33 +277,25 @@ def run_ddqn(args):
             # x_t = agent.process_image(obs)
 
             x_t = obs
-            s_t = np.stack((x_t, x_t, x_t, x_t), axis=3)
+            a = (x_t,)
+            for _ in range(img_frames - 1):
+                a = a + (x_t,)
+
+            s_t = np.stack(a, axis=3)
             # In Keras, need to reshape
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
             # print("s_t ",s_t.shape)
             while not done:
-                # if args.test:
-                #     video.capture_frame()
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
                 next_obs, reward, done, info = env.step(action)
-                # print(info)
-                # img = env.render()
-                # print(img.shape)
-                # print(img.min(), img.max())
-                # cv2.imshow("image", img)
-                # cv2.waitKey(0)
-                # cv2.destroyAllWindows()
                 # x_t1 = agent.process_image(next_obs)
+                
                 x_t1 = next_obs
-                # print(next_obs.shape)
-                # print(next_obs.min(), next_obs.max())
-                # cv2.imshow("image", next_obs)
-                # cv2.waitKey(0)
-                # cv2.destroyAllWindows()
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)
                 s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
+               
                 # Save the sample <s, a, r, s'> to the replay memory
                 # q-table
                 agent.replay_memory(s_t, np.argmax(linear_bin(steering)), reward, s_t1, done)
@@ -348,13 +328,14 @@ def run_ddqn(args):
         print("\n\n Total time training (min): ", (time.time() - t) / 60)
         with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
             pickle.dump(metrics_tot, fp)
-        # if args.test:
-        #     video.close()
+        
         env.close()
+        display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
         env.unwrapped.close()
+        display.stop()
 
 
 if __name__ == "__main__":
@@ -375,17 +356,13 @@ if __name__ == "__main__":
     ]
 
     parser = argparse.ArgumentParser(description="ddqn")
-    parser.add_argument(
-        "--sim",
-        type=str,
-        default="manual",
-        help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.",
-    )
+    parser.add_argument("--sim",type=str,default="manual",help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.")
     parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
     parser.add_argument("--episode", type=int, default=1, help="number of episode for training")
+    parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
     args = parser.parse_args()
     run_ddqn(args)

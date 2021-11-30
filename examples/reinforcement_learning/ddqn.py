@@ -27,12 +27,14 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
 from gym.wrappers.monitor import Monitor
+from pyvirtualdisplay import Display
 
-EPISODES = 2
+
+# EPISODES = 2
 img_rows, img_cols = 80, 80
 # img_rows, img_cols = 120, 160
 # Convert image into Black and white
-img_channels = 4  # We stack 4 frames
+# img_frames = 4  # We stack 4 frames
 
 
 class MyLoss(Loss):
@@ -80,7 +82,7 @@ class DQNAgent:
     def build_model(self):
         model = Sequential()
         model.add(
-            Conv2D(24, (5, 5), strides=(2, 2), padding="same", input_shape=(img_cols, img_rows, img_channels))
+            Conv2D(24, (5, 5), strides=(2, 2), padding="same", input_shape=(img_cols, img_rows, img_frames))
         )  # 80*80*4
         model.add(Activation("relu"))
         model.add(Conv2D(32, (5, 5), strides=(2, 2), padding="same"))
@@ -99,7 +101,7 @@ class DQNAgent:
         model.add(Dense(15, activation="linear"))
 
         adam = Adam(lr=self.learning_rate)
-        model.compile(loss="mae", optimizer=adam)
+        model.compile(loss="mse", optimizer=adam)
 
         return model
 
@@ -210,25 +212,23 @@ def run_ddqn(args):
     run a DDQN training session, or test it's result, with the donkey simulator
     """
 
-    # only needed if TF==1.13.1
-    '''
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-    K.set_session(sess)
-    '''
     # register(id="donkey-generated-track-v0", entry_point="gym_donkeycar.envs.donkey_env:GeneratedTrackEnv")
     t = time.time()
+    display = Display(visible=False, size=(1400, 900))
+    display.start()
+    EPISODES = args.episode
+    img_frames = args.stack_frames
     conf = {
-        "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "remote",
+        "exe_path": args.sim,
         "host": "127.0.0.1",
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
         "car_name": "Shumacher",
-        "font_size": 100,
+        "font_size": 30,
         "racer_name": "DDQN",
         "country": "USA",
         "bio": "Learning to drive w DDQN RL",
@@ -239,19 +239,21 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
+    env = Monitor(env, directory="./models/", force=True,)
+    name_model = args.model.replace(".h5", "")
 
     # not working on windows...
-    # def signal_handler(signal, frame):
-    #     print("catching ctrl+c")
-    #     env.unwrapped.close()
-    #     sys.exit(0)
+    def signal_handler(signal, frame):
+        print("catching ctrl+c")
+        env.unwrapped.close()
+        sys.exit(0)
 
-    # signal.signal(signal.SIGINT, signal_handler)
-    # signal.signal(signal.SIGTERM, signal_handler)
-    # signal.signal(signal.SIGABRT, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
-    state_size = (img_rows, img_cols, img_channels)
+    state_size = (img_rows, img_cols, img_frames)
     action_space = env.action_space  # Steering and Throttle
 
     try:
@@ -276,12 +278,15 @@ def run_ddqn(args):
 
             x_t = agent.process_image(obs)
 
-            s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
+            a = (x_t,)
+            for _ in range(img_frames - 1):
+                a = a + (x_t,)
+
+            s_t = np.stack(a, axis=2)
             # In Keras, need to reshape
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
 
             while not done:
-                env.render()
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
@@ -290,7 +295,7 @@ def run_ddqn(args):
                 x_t1 = agent.process_image(next_obs)
 
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  # 1x80x80x1
-                s_t1 = np.append(x_t1, s_t[:, :, :, :3], axis=3)  # 1x80x80x4
+                s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames-1], axis=3)  # 1x80x80x4
 
                 # Save the sample <s, a, r, s'> to the replay memory
                 agent.replay_memory(s_t, np.argmax(linear_bin(steering)), reward, s_t1, done)
@@ -304,28 +309,14 @@ def run_ddqn(args):
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
                 if agent.t % 30 == 0:
-                    print(
-                        "EPISODE",
-                        e,
-                        "TIMESTEP",
-                        agent.t,
-                        "/ ACTION",
-                        action,
-                        "/ REWARD",
-                        reward,
-                        "/ EPISODE LENGTH",
-                        episode_len,
-                        "/ Q_MAX ",
-                        agent.max_Q,
-                    )
+                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                          reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                    print(info)
 
                 if done:
-
                     # Every episode update the target model to be same with model
                     agent.update_target_model()
-
                     episodes.append(e)
-                    
 
                     # Save model for each episode
                     if agent.train:
@@ -333,24 +324,20 @@ def run_ddqn(args):
                         metrics_tot.append(metrics_episode)
                         metrics_episode = []
 
-                    print(
-                        "episode:",
-                        e,
-                        "  memory length:",
-                        len(agent.memory),
-                        "  epsilon:",
-                        agent.epsilon,
-                        " episode length:",
-                        episode_len,
-                    )
+                    print("episode:", e, "  memory length:", len(agent.memory),
+                          "  epsilon:", agent.epsilon, " episode length:", episode_len,)
+
         print("time: ", time.time()-t)
-        # with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
-        #     pickle.dump(metrics_tot, fp)
+        with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics_tot, fp)
         
+        env.close()
+        display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
         env.unwrapped.close()
+        display.stop()
 
 
 if __name__ == "__main__":
@@ -372,20 +359,16 @@ if __name__ == "__main__":
 
 
     parser = argparse.ArgumentParser(description="ddqn")
-    parser.add_argument(
-        "--sim",
-        type=str,
-        default="manual",
-        help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.",
-    )
+    parser = argparse.ArgumentParser(description="ddqn")
+    parser.add_argument("--sim", type=str, default="manual",
+                        help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.")
     parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
-    parser.add_argument(
-        "--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list
-    )
-    
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
+                        help="name of donkey sim environment", choices=env_list)
+    parser.add_argument("--episode", type=int, default=1, help="number of episode for training")
+    parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
     args = parser.parse_args()
-
     run_ddqn(args)
