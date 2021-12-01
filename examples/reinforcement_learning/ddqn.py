@@ -26,13 +26,12 @@ from tensorflow.keras.layers import Activation, Conv2D, Dense, Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
-from gym.wrappers.monitor import Monitor
 from pyvirtualdisplay import Display
 
 
 # EPISODES = 2
-img_rows, img_cols = 80, 80
-# img_rows, img_cols = 120, 160
+# img_rows, img_cols = 80, 80
+img_rows, img_cols = 120, 160
 # Convert image into Black and white
 # img_frames = 4  # We stack 4 frames
 
@@ -82,8 +81,8 @@ class DQNAgent:
     def build_model(self):
         model = Sequential()
         model.add(
-            Conv2D(24, (5, 5), strides=(2, 2), padding="same", input_shape=(img_cols, img_rows, img_frames))
-        )  # 80*80*4
+            Conv2D(24, (5, 5), strides=(2, 2), padding="same", input_shape=self.state_size)
+        )  
         model.add(Activation("relu"))
         model.add(Conv2D(32, (5, 5), strides=(2, 2), padding="same"))
         model.add(Activation("relu"))
@@ -167,9 +166,7 @@ class DQNAgent:
     def save_model(self, name):
         self.model.save_weights(name)
 
-
 # Utils Functions #
-
 
 def linear_bin(a):
     """
@@ -190,7 +187,6 @@ def linear_bin(a):
     arr = np.zeros(15)
     arr[int(b)] = 1
     return arr
-
 
 def linear_unbin(arr):
     """
@@ -219,11 +215,9 @@ def run_ddqn(args):
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
-        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        # "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
         # "exe_path": "remote",
         "exe_path": args.sim,
-        "host": "127.0.0.1",
+        "host": args.host,
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
@@ -239,8 +233,8 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-    env = Monitor(env, directory="./models/", force=True,)
-    name_model = args.model.replace(".h5", "")
+    # env = Monitor(env, directory="./models/", video_callable=False, force=True)
+    
 
     # not working on windows...
     def signal_handler(signal, frame):
@@ -253,29 +247,34 @@ def run_ddqn(args):
     signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
-    state_size = (img_rows, img_cols, img_frames)
+    state_size = (img_cols, img_rows, img_frames)
     action_space = env.action_space  # Steering and Throttle
-
+    
+    
     try:
         agent = DQNAgent(state_size, action_space, train=not args.test)
 
         throttle = args.throttle  # Set throttle as constant value
-
-        episodes = []
-        metrics_episode = []
-        metrics_tot = []
+        
+        
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
 
-        for e in range(EPISODES):
+        name_model = args.model.replace(".h5", "")
+        metrics = []
 
-            print("Episode: ", e)
+        for e in range(EPISODES):
+            print("Start episode: ", e)
             done = False
             obs = env.reset()
-
+            
+            need_frames = img_frames-1
+            # logging
+            data_episode = []
             episode_len = 0
-
+            start_episode = time.time()
+            
             x_t = agent.process_image(obs)
 
             a = (x_t,)
@@ -287,6 +286,19 @@ def run_ddqn(args):
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
 
             while not done:
+                if need_frames>1:
+                    steering = agent.get_action(s_t)
+                    action = [steering, throttle]
+                    next_obs, reward, done, info = env.step(action)
+
+                    x_t1 = agent.process_image(next_obs)
+
+                    x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  # 1x80x80x1
+                    s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=3)  # 1x80x80x4
+                    
+                    need_frames -= 1
+                    continue
+
                 # Get action for the current state and go one step in environment
                 steering = agent.get_action(s_t)
                 action = [steering, throttle]
@@ -302,34 +314,35 @@ def run_ddqn(args):
                 agent.update_epsilon()
 
                 if agent.train:
-                    result = agent.train_replay()
-                    metrics_episode.append(result)
+                    agent.train_replay()
+                    #STAT
+                    s_t = s_t1
+                    agent.t = agent.t + 1
+                    episode_len = episode_len + 1
+                    data_episode.append({"info:": info, "reward": reward, "action": action, "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
 
-                s_t = s_t1
-                agent.t = agent.t + 1
-                episode_len = episode_len + 1
-                if agent.t % 30 == 0:
+                if agent.t % 50 == 0:
                     print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
                           reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                    print(info)
+                    # print(info)
 
                 if done:
                     # Every episode update the target model to be same with model
                     agent.update_target_model()
-                    episodes.append(e)
 
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        metrics_tot.append(metrics_episode)
-                        metrics_episode = []
+                        metrics.append({"episode": e, "time":time.time()-start_episode, "data": data_episode})
+                        # print(metrics[-1])
+                        data_episode = []
 
-                    print("episode:", e, "  memory length:", len(agent.memory),
-                          "  epsilon:", agent.epsilon, " episode length:", episode_len,)
+                    print("FINISH episode:", e, "  memory length:", len(agent.memory),
+                          "  epsilon:", agent.epsilon, " episode length tot:", episode_len,)
 
-        print("time: ", time.time()-t)
-        with open(args.model.replace(".h5", "") + str('_metrics.plk'), 'wb') as fp:
-            pickle.dump(metrics_tot, fp)
+        print("\nTotal time training (min): ", (time.time() - t) / 60.0)
+        with open(name_model + str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics, fp)
         
         env.close()
         display.stop()
@@ -362,13 +375,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ddqn")
     parser.add_argument("--sim", type=str, default="manual",
                         help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="ip localhost")
     parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
                         help="name of donkey sim environment", choices=env_list)
-    parser.add_argument("--episode", type=int, default=1, help="number of episode for training")
-    parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
+    parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
+    parser.add_argument("--stack_frames", type=int, default=1, help="number of frame for stack")
     args = parser.parse_args()
     run_ddqn(args)

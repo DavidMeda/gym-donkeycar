@@ -16,7 +16,7 @@ with open("README.md") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements = ["gym", "numpy", "pillow"]
+requirements = ["gym", "numpy", "pillow", "opencv-python"]
 
 
 setup(
