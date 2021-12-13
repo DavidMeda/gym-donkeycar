@@ -210,8 +210,8 @@ def run_ddqn(args):
     """
 
     t = time.time()
-    display = Display(visible=False, size=(1920, 1080))
-    display.start()
+    # display = Display(visible=False, size=(1920, 1080))
+    # display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
@@ -245,7 +245,7 @@ def run_ddqn(args):
     signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
-    state_size = (img_cols, img_rows, 3, img_frames)
+    state_size = (img_rows, img_cols,  3, img_frames)
     action_space = env.action_space  # Steering and Throttle
 
     try:
@@ -286,10 +286,10 @@ def run_ddqn(args):
                     action = [steering, throttle]
                     next_obs, reward, done, info = env.step(action)
 
-                    x_t1 = agent.process_image(next_obs)
-
-                    x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  
-                    s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=3)  
+                    # x_t1 = agent.process_image(next_obs)
+                    x_t1 = next_obs
+                    x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  
+                    s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=4) 
 
                     need_frames -= 1
                     continue
@@ -344,7 +344,7 @@ def run_ddqn(args):
             pickle.dump(metrics, fp)
         
         env.close()
-        display.stop()
+        # display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
@@ -379,7 +379,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
-    parser.add_argument("--episode", type=int, default=1, help="number of episode for training")
+    parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
     parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
     args = parser.parse_args()
     run_ddqn(args)
