@@ -6,6 +6,7 @@ original: https://github.com/flyyufelix/donkey_rl/blob/master/donkey_rl/src/ddqn
 """
 import argparse
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import random
 import signal
 import sys
@@ -18,7 +19,6 @@ import gym
 from tensorflow.python.keras import metrics
 from gym.envs.registration import register
 import gym_donkeycar
-# from gym_donkeycar.envs.donkey_env import GeneratedTrackEnv
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -208,9 +208,8 @@ def run_ddqn(args):
     run a DDQN training session, or test it's result, with the donkey simulator
     """
 
-    # register(id="donkey-generated-track-v0", entry_point="gym_donkeycar.envs.donkey_env:GeneratedTrackEnv")
     t = time.time()
-    display = Display(visible=False, size=(1400, 900))
+    display = Display(visible=False, size=(1920, 1080))
     display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
@@ -249,6 +248,9 @@ def run_ddqn(args):
     # Get size of state and action from environment
     state_size = (img_cols, img_rows, img_frames)
     action_space = env.action_space  # Steering and Throttle
+
+    print("state_size ",state_size)
+    print("action_space ",action_space)
     
     
     try:
@@ -260,6 +262,7 @@ def run_ddqn(args):
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
+            # agent.model.summary()
 
         name_model = args.model.replace(".h5", "")
         metrics = []
@@ -321,10 +324,10 @@ def run_ddqn(args):
                     episode_len = episode_len + 1
                     data_episode.append({"info:": info, "reward": reward, "action": action, "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
 
-                if agent.t % 50 == 0:
-                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
-                          reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                    # print(info)
+                    if agent.t % 50 == 0:
+                        print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                            reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                        # print(info)
 
                 if done:
                     # Every episode update the target model to be same with model
@@ -333,11 +336,11 @@ def run_ddqn(args):
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        metrics.append({"episode": e, "time":time.time()-start_episode, "data": data_episode})
+                        metrics.append({"episode": e, "time":(time.time() - start_episode)/60.0, "data": data_episode})
                         # print(metrics[-1])
                         data_episode = []
 
-                    print("FINISH episode:", e, "  memory length:", len(agent.memory),
+                    print("FINISH episode:", e, " time (min): ", (time.time() - start_episode)/60.0, "  memory length:", len(agent.memory),
                           "  epsilon:", agent.epsilon, " episode length tot:", episode_len,)
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
@@ -350,7 +353,9 @@ def run_ddqn(args):
         print("stopping run...")
     finally:
         env.unwrapped.close()
-        display.stop()
+        with open(name_model + str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics, fp)
+        # display.stop()
 
 
 if __name__ == "__main__":

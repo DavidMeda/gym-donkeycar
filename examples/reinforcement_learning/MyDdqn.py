@@ -210,7 +210,7 @@ def run_ddqn(args):
     """
 
     t = time.time()
-    display = Display(visible=False, size=(1400, 900))
+    display = Display(visible=False, size=(1920, 1080))
     display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
@@ -310,7 +310,7 @@ def run_ddqn(args):
                 agent.update_epsilon()
 
                 if agent.train:
-                    result = agent.train_replay()
+                    agent.train_replay()
                     #STAT
                     s_t = s_t1
                     agent.t = agent.t + 1
@@ -318,13 +318,13 @@ def run_ddqn(args):
                     data_episode.append({"info:": info, "reward": reward, "action": action,
                                         "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
 
-                s_t = s_t1
-                agent.t = agent.t + 1
-                episode_len = episode_len + 1
-                if agent.t % 50 == 0:
-                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
-                          reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                    # print(info)
+                # s_t = s_t1
+                # agent.t = agent.t + 1
+                # episode_len = episode_len + 1
+                    if agent.t % 50 == 0:
+                        print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                            reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                        # print(info)
                 if done:
                     # Every episode update the target model to be same with model
                     agent.update_target_model()
@@ -332,11 +332,11 @@ def run_ddqn(args):
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        metrics.append({"episode": e, "time": time.time() - start_episode, "data": data_episode})
+                        metrics.append({"episode": e, "time (min)": (time.time() - start_episode)/60.0, "data": data_episode})
                         # print(metrics[-1])
                         data_episode = []
 
-                    print("FINISH episode:", e, "  memory length:", len(agent.memory),
+                    print("FINISH episode:", e, " time (min): ", (time.time() - start_episode)/60.0, "  memory length:", len(agent.memory),
                           "  epsilon:", agent.epsilon, " episode length:", episode_len,)
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
@@ -349,7 +349,9 @@ def run_ddqn(args):
         print("stopping run...")
     finally:
         env.unwrapped.close()
-        display.stop()
+        with open(name_model+ str('_metrics.plk'), 'wb') as fp:
+            pickle.dump(metrics, fp)
+        # display.stop()
 
 
 if __name__ == "__main__":
