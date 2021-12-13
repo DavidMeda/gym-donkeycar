@@ -210,8 +210,8 @@ def run_ddqn(args):
     """
 
     t = time.time()
-    # display = Display(visible=False, size=(1920, 1080))
-    # display.start()
+    display = Display(visible=False, size=(1920, 1080))
+    display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
@@ -344,7 +344,7 @@ def run_ddqn(args):
             pickle.dump(metrics, fp)
         
         env.close()
-        # display.stop()
+        display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
