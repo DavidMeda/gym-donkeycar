@@ -413,8 +413,8 @@ class DonkeyUnitySimHandler(IMesgHandler):
             return -1.0* self.speed
 
         if self.hit != "none":
-            print("cte: ", self.cte, "\tspeed: ", self.speed)
-            print("reward HIT: ", -2.0* self.speed)
+            # print("cte: ", self.cte, "\tspeed: ", self.speed)
+            # print("reward HIT: ", -2.0* self.speed)
             return -2.0* self.speed
         
         # going fast close to the center of right lane yeilds best reward
