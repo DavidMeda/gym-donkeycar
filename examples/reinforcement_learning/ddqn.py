@@ -143,6 +143,7 @@ class DQNAgent:
         batch_size = min(self.batch_size, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
+        # split minibatch  of replay memory
         state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
         state_t = np.concatenate(state_t)
         state_t1 = np.concatenate(state_t1)
@@ -214,8 +215,9 @@ def run_ddqn(args):
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
-        # "exe_path": "remote",
-        "exe_path": args.sim,
+        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        #"exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
+        "exe_path":args.sim,
         "host": args.host,
         "port": args.port,
         "body_style": "donkey",
@@ -226,7 +228,7 @@ def run_ddqn(args):
         "country": "USA",
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
-        "max_cte": 10,
+        "max_cte": 1.5,
     }
   
 
@@ -319,15 +321,15 @@ def run_ddqn(args):
                 if agent.train:
                     agent.train_replay()
                     #STAT
-                    s_t = s_t1
-                    agent.t = agent.t + 1
-                    episode_len = episode_len + 1
+                    
                     data_episode.append({"info:": info, "reward": reward, "action": action, "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
-
-                    if agent.t % 50 == 0:
-                        print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
-                            reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                        # print(info)
+                s_t = s_t1
+                agent.t = agent.t + 1
+                episode_len = episode_len + 1
+                if agent.t % 50 == 0:
+                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                        reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                    # print(info)
 
                 if done:
                     # Every episode update the target model to be same with model
@@ -388,6 +390,6 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
                         help="name of donkey sim environment", choices=env_list)
     parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
-    parser.add_argument("--stack_frames", type=int, default=1, help="number of frame for stack")
+    parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
     args = parser.parse_args()
     run_ddqn(args)

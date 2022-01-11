@@ -215,6 +215,8 @@ def run_ddqn(args):
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
+        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
+        #"exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
         "exe_path":args.sim,
         "host": args.host,
         "port": args.port,
@@ -312,19 +314,19 @@ def run_ddqn(args):
                 if agent.train:
                     agent.train_replay()
                     #STAT
-                    s_t = s_t1
-                    agent.t = agent.t + 1
-                    episode_len = episode_len + 1
+                    # s_t = s_t1
+                    # agent.t = agent.t + 1
+                    # episode_len = episode_len + 1
                     data_episode.append({"info:": info, "reward": reward, "action": action,
                                         "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
 
-                # s_t = s_t1
-                # agent.t = agent.t + 1
-                # episode_len = episode_len + 1
-                    if agent.t % 50 == 0:
-                        print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
-                            reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                        # print(info)
+                s_t = s_t1
+                agent.t = agent.t + 1
+                episode_len = episode_len + 1
+                if agent.t % 50 == 0:
+                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
+                        reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                    # print(info)
                 if done:
                     # Every episode update the target model to be same with model
                     agent.update_target_model()

@@ -313,8 +313,8 @@ class DonkeyUnitySimHandler(IMesgHandler):
         logger.debug("got message :" + msg_type)
         if msg_type in self.fns:
             self.fns[msg_type](message)
-        else:
-            logger.warning(f"unknown message type {msg_type}")
+        #else:
+            #logger.warning(f"unknown message type {msg_type}")
 
     # ------- Env interface ---------- #
 
@@ -401,17 +401,24 @@ class DonkeyUnitySimHandler(IMesgHandler):
         logger.debug("custom reward fn set.")
 
     def calc_reward(self, done):
-        if done:
-            return -1.0
+        
+        # if math.fabs(self.cte) > 1.0:
+        #     print("cte: ", self.cte, "\tspeed: ", self.speed)
+        #     print("reward BOUND: ", (1 - (math.fabs(self.cte) / self.max_cte)) * self.speed)
+            #return -1.0
 
-        if self.cte > self.max_cte:
-            return -1.0
+        if done:
+            # print("cte: ", self.cte, "\tspeed: ", self.speed)
+            # print("reward DONE: ", -1.0* self.speed)
+            return -1.0* self.speed
 
         if self.hit != "none":
-            return -2.0
-
-        # going fast close to the center of lane yeilds best reward
-        return (1.0 - (math.fabs(self.cte) / self.max_cte)) * self.speed
+            print("cte: ", self.cte, "\tspeed: ", self.speed)
+            print("reward HIT: ", -2.0* self.speed)
+            return -2.0* self.speed
+        
+        # going fast close to the center of right lane yeilds best reward
+        return (1 - (math.fabs(self.cte) / self.max_cte)) * self.speed
 
     # ------ Socket interface ----------- #
 
