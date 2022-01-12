@@ -94,6 +94,11 @@ class DDQNAgent:
 
         return model
 
+    def process_image(self, image):
+        img = image.astype(np.float16)
+        img /= 255.0
+        return img
+
     def update_target_model(self):
         self.target_model.set_weights(self.model.get_weights())
 
@@ -200,14 +205,14 @@ def run_ddqn(args):
     run a DDQN training session, or test it's result, with the donkey simulator
     """
 
-    display = Display(visible=False, size=(1920, 1080))
-    display.start()
+    # display = Display(visible=False, size=(1920, 1080))
+    # display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
         # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        #"exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        "exe_path":args.sim,
+        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
+        #"exe_path":args.sim,
         "host": args.host,
         "port": args.port,
         "body_style": "donkey",
@@ -275,7 +280,9 @@ def run_ddqn(args):
             distance_time = start_episode
 
             need_frames = img_frames-1
-            x_t = obs
+            x_t = agent.process_image(obs)
+            print("img reset size:",x_t.shape, "min", np.min(x_t), "max", np.max(x_t))
+
             a = (x_t,)
             for _ in range(img_frames - 1):
                 a = a + (x_t,)
@@ -289,7 +296,7 @@ def run_ddqn(args):
                     action = agent.get_action(s_t)
                     next_obs, reward, done, info = env.step(action)
 
-                    x_t1 = next_obs
+                    x_t1 = agent.process_image(next_obs)
                     x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  
                     s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=4) 
 
@@ -300,7 +307,9 @@ def run_ddqn(args):
                 action = agent.get_action(s_t)
                 next_obs, reward, done, info = env.step(action)
                 
-                x_t1 = next_obs
+                x_t1 = agent.process_image(next_obs)
+                print("img size:",x_t1.shape, "min", np.min(x_t1), "max", np.max(x_t1))
+
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)
                 s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
                

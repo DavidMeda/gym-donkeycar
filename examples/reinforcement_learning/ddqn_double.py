@@ -108,9 +108,12 @@ class DDQNAgent:
         return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
     def process_image(self, obs):
-        obs = self.rgb2gray(obs)
-        obs = cv2.resize(obs, (img_rows, img_cols))
-        return obs
+        img = self.rgb2gray(obs)
+        img = cv2.resize(img, (img_rows, img_cols))
+        img = img.astype(np.float16)
+        img /= 255.0
+        
+        return img
 
     def update_target_model(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -218,15 +221,15 @@ def run_ddqn(args):
     """
     run a DDQN training session, or test it's result, with the donkey simulator
     """
-    display = Display(visible=False, size=(1920, 1080))
-    display.start()
+    # display = Display(visible=False, size=(1920, 1080))
+    # display.start()
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
         # "exe_path": "remote",
         # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        #"exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        "exe_path":args.sim,
+        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
+        #"exe_path":args.sim,
         "host": args.host,
         "port": args.port,
         "body_style": "donkey",
@@ -300,7 +303,6 @@ def run_ddqn(args):
 
             need_frames = img_frames-1
             x_t = agent.process_image(obs)
-
             a = (x_t,)
             for _ in range(img_frames - 1):
                 a = a + (x_t,)
@@ -326,7 +328,6 @@ def run_ddqn(args):
                 next_obs, reward, done, info = env.step(action)
 
                 x_t1 = agent.process_image(next_obs)
-
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  
                 s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames-1], axis=3)  
 
