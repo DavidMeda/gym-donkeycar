@@ -374,8 +374,7 @@ def run_ddqn(args):
                             round(np.max(ctes), 4), round(distance, 4),  round(np.mean(throttles), 4),round(np.max(throttles), 4),
                             round(np.min(throttles), 4), round(np.mean(ctes_absolute), 4), round(np.min(ctes_absolute), 4), round(np.max(ctes_absolute), 2)    ])
 
-                    print("FINISH EPISODE:", e, " time ep: ", round(time.time() - start_episode),4), " epsilon:", round(agent.epsilon, 4), 
-                    " ep length tot:", episode_len," avg reward:", round(np.mean(rewards)," tot distance:", round(distance, 4), "avg throttle:", round(np.mean(throttles), 4))
+                    print("FINISH EPISODE:", e, " time ep: ", round(time.time() - start_episode,4), " epsilon:", round(agent.epsilon, 4), " ep length tot:", episode_len," avg reward:", round(np.mean(rewards),4)," tot distance:", round(distance, 4), "avg throttle:", round(np.mean(throttles), 4))
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
         file.flush()
