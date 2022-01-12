@@ -25,14 +25,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
 from pyvirtualdisplay import Display
 
-
-
-# EPISODES = 10
-# img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
-# Convert image into Black and white
-# img_frames = 4  # We stack 4 frames
-
 
 class DQNAgent:
     def __init__(self, state_size, action_space, train=True):
@@ -91,7 +84,7 @@ class DQNAgent:
         model.add(Dense(15, activation="linear"))
 
         adam = Adam(lr=self.learning_rate)
-        model.compile(loss="mse", optimizer=adam, metrics=['accuracy'])
+        model.compile(loss="mse", optimizer=adam)
 
         return model
 
@@ -225,8 +218,6 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-    # env = Monitor(env, directory="./models/", force=True,)
-
 
     # # not working on windows...
     def signal_handler(signal, frame):
