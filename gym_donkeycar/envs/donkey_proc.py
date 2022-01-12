@@ -22,7 +22,7 @@ class DonkeyUnityProcess(object):
             print(sim_path, "does not exist. you must start sim manually.")
             return
 
-        port_args = ["--port", str(port), "--host", str(host), "-logFile", "unitylog.txt"]
+        port_args = ["--port", str(port), "--host", str(host)]
 
         # Launch Unity environment
         if headless:

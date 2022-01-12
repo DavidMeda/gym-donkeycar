@@ -27,6 +27,7 @@ from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
 from pyvirtualdisplay import Display
+from csv import writer
 
 
 # EPISODES = 2
@@ -96,7 +97,7 @@ class DDQNAgent:
         adam = Adam(lr=self.learning_rate)
         model.compile(loss="mse", optimizer=adam)
         # model.compile(loss="mse", optimizer=adam, metrics=[MeanSquaredError(), MeanAbsoluteError(), 
-        #                                             MeanAbsolutePercentageError(), MeanSquaredLogarithmicError(),
+        #                                             metrics.RootMeanSquaredError(), MeanSquaredLogarithmicError(),
         #                                             CosineSimilarity(), LogCosh()] )
         return model
 
@@ -124,8 +125,8 @@ class DDQNAgent:
         else:
             # print("Return Max Q Prediction")
             q_value = self.model.predict(s_t)
-            print("get_action() prediction: Steering: ", linear_unbin(q_value[0][0], 15), 
-                "\tTrottle: ", linear_unbin(q_value[1][0], 9))
+            # print("get_action() prediction: Steering: ", linear_unbin(q_value[0][0], 15), 
+            #     "\tTrottle: ", linear_unbin(q_value[1][0], 9))
             
             # Convert q array to steering value and throttle value
             actions.append(linear_unbin(q_value[0][0], 15))
@@ -188,7 +189,6 @@ def linear_bin(a, n_bin):
     Parameters
     ----------
     a : int or float
-        A value between -1 and 1
 
     Returns
     -------
@@ -220,8 +220,6 @@ def run_ddqn(args):
     """
     run a DDQN training session, or test it's result, with the donkey simulator
     """
-
-    t = time.time()
     display = Display(visible=False, size=(1920, 1080))
     display.start()
     EPISODES = args.episode
@@ -242,13 +240,11 @@ def run_ddqn(args):
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
+        "log_level": 40
     }
   
-
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, conf=conf)
-    # env = Monitor(env, directory="./models/", video_callable=False, force=True)
-    
 
     # not working on windows...
     def signal_handler(signal, frame):
@@ -264,41 +260,51 @@ def run_ddqn(args):
     state_size = (img_cols, img_rows, img_frames)
     action_space = env.action_space  # Steering and Throttle
 
-    print("state_size ",state_size)
-    print("action_space ",action_space)
+    # print("state_size ",state_size)
+    # print("action_space ",action_space)
     
-    
+    t = time.time()
     try:
         agent = DDQNAgent(state_size, action_space, train=not args.test)
 
-        #throttle = args.throttle  # Set throttle as constant value
-        
-        
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
-            # agent.model.summary()
+            agent.model.summary()
 
-        # name_model = args.model.replace(".h5", "")
-        metrics = []
+        name_model = args.model.replace(".h5", "")
+        file = open(str(name_model)+"_metric.csv", "w+")
+        log = writer(file)
+        log.writerow(['Episode','Timestep', 'Avg Steer', 'Min Reward', 
+        'Avg Reward', 'Max Reward','Reward Sum', 'Episode Length',  
+        'Max Q steering', 'Max Q throttle', 'Epsilon','Episode Time', 
+        'Avg Speed','Max Speed','Min CTE','Avg CTE','Max CTE','Distance', 
+        "Average Throttle", "Max Throttle", "Min Throttle",
+        "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE"])
 
         for e in range(EPISODES):
             print("Start episode: ", e)
             done = False
             obs = env.reset()
             
-            need_frames = img_frames-1
-            # logging
-            data_episode = []
-            episode_len = 0
+            # Stats
             start_episode = time.time()
-            
+            episode_len = 0
+            steers = []
+            throttles = []
+            rewards =[]
+            velocities = []
+            ctes = []
+            ctes_absolute = []
+            distance = 0.0
+            distance_time = start_episode
+
+            need_frames = img_frames-1
             x_t = agent.process_image(obs)
 
             a = (x_t,)
             for _ in range(img_frames - 1):
                 a = a + (x_t,)
-
             s_t = np.stack(a, axis=2)
             # In Keras, need to reshape
             s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
@@ -319,7 +325,6 @@ def run_ddqn(args):
 
                 # Get action for the current state and go one step in environment
                 action = agent.get_action(s_t)
-                # print("ACTION: ", action)
                 next_obs, reward, done, info = env.step(action)
 
                 x_t1 = agent.process_image(next_obs)
@@ -335,16 +340,22 @@ def run_ddqn(args):
 
                 if agent.train:
                     agent.train_replay()
-                    #STAT
-                    # data_episode.append({"info:": info, "reward": reward, "action": action, "Q_MAX ": agent.max_Q, "epsilon: ": agent.epsilon})
-                
+                    # stats
+                    steers.append(action[0])
+                    throttles.append(action[1])
+                    velocities.append(round(info["speed"], 4))
+                    rewards.append(round(reward,4))
+                    ctes.append(round(info["cte"], 4))
+                    ctes_absolute.append(round(abs(info["cte"]), 4))
+                    distance += info["speed"]*(time.time()-distance_time)
+                    distance_time = time.time()
+
                 s_t = s_t1
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
                 if agent.t % 50 == 0:
                     print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
                         reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
-                    # print(info)
 
                 if done:
                     # Every episode update the target model to be same with model
@@ -353,26 +364,27 @@ def run_ddqn(args):
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        # metrics.append({"episode": e, "time":(time.time() - start_episode)/60.0, "data": data_episode})
-                        # print(metrics[-1])
-                        data_episode = []
+
+                        # stat save
+                        log.writerow([e,agent.t, round(np.mean(steers), 4), round(np.min(rewards), 4), 
+                            round(np.mean(rewards), 4), round(np.max(rewards), 4), round(np.sum(rewards),4), 
+                            episode_len, agent.max_Q[0], agent.max_Q[1], agent.epsilon, round((time.time() - start_episode), 4),
+                            round(np.mean(velocities), 4), round(np.max(velocities), 4), round(np.min(ctes), 4), round(np.mean(ctes), 4),
+                            round(np.max(ctes), 4), round(distance, 4),  round(np.mean(throttles), 4),round(np.max(throttles), 4),
+                            round(np.min(throttles), 4), round(np.mean(ctes_absolute), 4), round(np.min(ctes_absolute), 4), round(np.max(ctes_absolute), 2)    ])
 
                     print("FINISH episode:", e, " time (min): ", (time.time() - start_episode)/60.0, "  memory length:", len(agent.memory),
                           "  epsilon:", agent.epsilon, " episode length tot:", episode_len,)
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
-        # with open(name_model + str('_metrics.plk'), 'wb') as fp:
-        #     pickle.dump(metrics, fp)
-        
+        file.flush()
         env.close()
-        # display.stop()
+        display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
         env.close()
-        # with open(name_model + str('_metrics.plk'), 'wb') as fp:
-        #     pickle.dump(metrics, fp)
-        # display.stop()
+        file.flush()
 
 
 if __name__ == "__main__":

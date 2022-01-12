@@ -34,14 +34,6 @@ img_rows, img_cols = 120, 160
 # img_frames = 4  # We stack 4 frames
 
 
-class MyLoss(Loss):
-    def __init__(self):
-        super().__init__()
-
-    def call(self, y_true, y_pred):
-        return (1 + tf.math.exp(tf.abs(y_true))) * tf.abs(y_true - y_pred)
-
-
 class DQNAgent:
     def __init__(self, state_size, action_space, train=True):
         self.t = 0
@@ -228,7 +220,7 @@ def run_ddqn(args):
         "country": "USA",
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
-        "max_cte": 10,
+        "max_cte": 1.5,
     }
 
     # Construct gym environment. Starts the simulator if path is given.
