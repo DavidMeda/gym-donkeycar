@@ -270,7 +270,8 @@ def run_ddqn(args):
         if os.path.exists(args.model):
             print("load the saved model")
             agent.load_model(args.model)
-            agent.model.summary()
+
+        agent.model.summary()
 
         name_model = args.model.replace(".h5", "")
         file = open(str(name_model)+"_metric.csv", "w+")
@@ -283,7 +284,7 @@ def run_ddqn(args):
         "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE"])
 
         for e in range(EPISODES):
-            print("Start episode: ", e)
+            print("START EPISODE: ", e)
             done = False
             obs = env.reset()
             
@@ -354,8 +355,8 @@ def run_ddqn(args):
                 agent.t = agent.t + 1
                 episode_len = episode_len + 1
                 if agent.t % 50 == 0:
-                    print("EPISODE", e, "TIMESTEP", agent.t, "/ ACTION", action, "/ REWARD",
-                        reward, "/ EPISODE LENGTH", episode_len, "/ Q_MAX ", agent.max_Q,)
+                    print(" episode", e, "/ timestep", agent.t, "/ reward",
+                        round(reward, 4), "/ episode len", episode_len, "/ q_max [steer, throt] ", agent.max_Q,)
 
                 if done:
                     # Every episode update the target model to be same with model
@@ -373,8 +374,8 @@ def run_ddqn(args):
                             round(np.max(ctes), 4), round(distance, 4),  round(np.mean(throttles), 4),round(np.max(throttles), 4),
                             round(np.min(throttles), 4), round(np.mean(ctes_absolute), 4), round(np.min(ctes_absolute), 4), round(np.max(ctes_absolute), 2)    ])
 
-                    print("FINISH episode:", e, " time (min): ", (time.time() - start_episode)/60.0, "  memory length:", len(agent.memory),
-                          "  epsilon:", agent.epsilon, " episode length tot:", episode_len,)
+                    print("FINISH EPISODE:", e, " time ep: ", round(time.time() - start_episode),4), " epsilon:", round(agent.epsilon, 4), 
+                    " ep length tot:", episode_len," avg reward:", round(np.mean(rewards)," tot distance:", round(distance, 4), "avg throttle:", round(np.mean(throttles), 4))
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
         file.flush()
