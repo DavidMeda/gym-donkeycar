@@ -112,7 +112,6 @@ class DDQNAgent:
         img = cv2.resize(img, (img_rows, img_cols))
         img = img.astype(np.float16)
         img /= 255.0
-        
         return img
 
     def update_target_model(self):
@@ -221,15 +220,17 @@ def run_ddqn(args):
     """
     run a DDQN training session, or test it's result, with the donkey simulator
     """
-    # display = Display(visible=False, size=(1920, 1080))
-    # display.start()
+    display = None
+    path = None
+    if args.server:
+        display = Display(visible=False, size=(1920, 1080)).start()
+        path = args.sim
+    else:
+        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe"
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
-        # "exe_path": "remote",
-        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        #"exe_path":args.sim,
+        "exe_path":path,
         "host": args.host,
         "port": args.port,
         "body_style": "donkey",
@@ -377,12 +378,15 @@ def run_ddqn(args):
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
         file.flush()
         env.close()
-        display.stop()
+        if args.server:
+            display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
         env.close()
         file.flush()
+        if args.server:
+            display.stop()
 
 
 if __name__ == "__main__":
@@ -410,6 +414,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="127.0.0.1", help="ip localhost")
     parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
+    parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",

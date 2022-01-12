@@ -195,14 +195,17 @@ def run_ddqn(args):
     """
 
     t = time.time()
-    display = Display(visible=False, size=(1920, 1080))
-    display.start()
+    display = None
+    path = None
+    if args.server:
+        display = Display(visible=False, size=(1920, 1080)).start()
+        path = args.sim
+    else:
+        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe"
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
-        # "exe_path": "D:\\DonkeySimWin\\DonkeySimWin2\\DonkeySimWin\\donkey_sim.exe",
-        #"exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        "exe_path":args.sim,
+        "exe_path":path,
         "host": args.host,
         "port": args.port,
         "body_style": "donkey",
@@ -329,14 +332,16 @@ def run_ddqn(args):
             pickle.dump(metrics, fp)
         
         env.close()
-        display.stop()
+        if args.server:
+            display.stop()
     except KeyboardInterrupt:
         print("stopping run...")
     finally:
         env.unwrapped.close()
         with open(name_model+ str('_metrics.plk'), 'wb') as fp:
             pickle.dump(metrics, fp)
-        # display.stop()
+        if args.server:
+            display.stop()
 
 
 if __name__ == "__main__":
@@ -366,5 +371,6 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
     parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
     parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
+    parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
     args = parser.parse_args()
     run_ddqn(args)
