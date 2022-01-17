@@ -86,8 +86,8 @@ class DDQNAgent:
         x = Dense(50, activation='relu', name='dense_3')(x)
         x = Dropout(rate=0.2)(x)
 
-        steering_out = Dense(15, activation='linear', name='steering_out')(x)
-        throttle_out = Dense(9, activation='sigmoid', name='throttle_out')(x)
+        steering_out = Dense(20, activation='linear', name='steering_out')(x)
+        throttle_out = Dense(10, activation='linear', name='throttle_out')(x)
         model = Model(inputs=[img_in], outputs=[steering_out, throttle_out])
         adam = Adam(lr=self.learning_rate)
         model.compile(loss="mse", optimizer=adam)
@@ -116,8 +116,8 @@ class DDQNAgent:
             #     "\tTrottle: ", linear_unbin(q_value[1][0], 9))
             
             # Convert q array to steering value and throttle value
-            actions.append(linear_unbin(q_value[0][0], 15))
-            actions.append(linear_unbin(q_value[1][0], 9))
+            actions.append(linear_unbin_steering(q_value[0][0]))
+            actions.append(linear_unbin_throttle(q_value[1][0]))
 
         return actions
 
@@ -166,39 +166,34 @@ class DDQNAgent:
         self.model.save_weights(name)
 
 # Utils Functions #
-def linear_bin(a, n_bin):
-    """
-    Convert a value to a categorical array.
 
-    Parameters
-    ----------
-    a : int or float
 
-    Returns
-    -------
-    list of int
-        A list of length 15 with one item set to 1, which represents the linear value, and all other items set to 0.
-    """
-    a = a + 1
-    b = round(a / (2 / (n_bin-1)))
-    arr = np.zeros(n_bin)
+def linear_bin_steering(val):
+    bins = np.linspace(-1, 1, 20)
+    b = np.digitize(val, bins, True)
+    arr = np.zeros(20)
     arr[int(b)] = 1
     return arr
 
-def linear_unbin(arr, n_bin):
-    """
-    Convert a categorical array to value.
 
-    See Also
-    --------
-    linear_bin
-    """
-    if not len(arr) == n_bin:
-        raise ValueError("Illegal array length, must be 15")
+def linear_unbin_steering(arr):
     b = np.argmax(arr)
-    a = b * (2 / (n_bin-1)) - 1
-    return a
+    bins = np.linspace(-1, 1, 20)
+    return bins[int(b)]
 
+
+def linear_bin_throttle(val):
+    bins = np.linspace(0, 1, 10)
+    b = np.digitize(val, bins, True)
+    arr = np.zeros(10)
+    arr[int(b)] = 1
+    return arr
+
+
+def linear_unbin_throttle(arr):
+    b = np.argmax(arr)
+    bins = np.linspace(0, 1, 10)
+    return bins[int(b)]
 
 def run_ddqn(args):
     """
@@ -223,7 +218,6 @@ def run_ddqn(args):
         "car_name": "Schumacher",
         "font_size": 30,
         "racer_name": "DDQN",
-        "country": "USA",
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
@@ -315,8 +309,8 @@ def run_ddqn(args):
                 s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
                
                 # Save the sample <s, a, r, s'> to the replay memory
-                steering_bin = np.argmax(linear_bin(action[0], 15))
-                throttle_bin = np.argmax(linear_bin(action[1], 9))
+                steering_bin = np.argmax(linear_bin_steering(action[0]))
+                throttle_bin = np.argmax(linear_bin_throttle(action[1]))
                 agent.replay_memory(s_t, [steering_bin, throttle_bin],  reward, s_t1, done)
                 agent.update_epsilon()
 
