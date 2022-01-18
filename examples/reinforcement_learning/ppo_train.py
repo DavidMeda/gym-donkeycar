@@ -1,6 +1,6 @@
 import argparse
 import uuid
-import gym_donkeycar
+import gym_donkeycar 
 import os
 import gym
 from stable_baselines3 import PPO
@@ -10,7 +10,9 @@ from pyvirtualdisplay import Display
 import torch
 from stable_baselines3.common.evaluation import evaluate_policy
 from callbacks import SaveOnBestTrainingRewardCallback
+from stable_baselines3.common.callbacks import EvalCallback
 from wrappers import MyMonitor
+from stable_baselines3.common.env_util import make_vec_env
 
 
 def make_env(env_id, rank, conf, seed=0):
@@ -61,12 +63,14 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9091, help="port to use for tcp")
     parser.add_argument("--test", action="store_true", help="load the trained model and play")
     parser.add_argument("--multi", action="store_true", help="start multiple sims at once")
-    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
-                        help="name of donkey sim environment", choices=env_list)
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",help="name of donkey sim environment", choices=env_list)
     parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="ip localhost")
+    parser.add_argument("--host", type=str, default="localhost", help="ip localhost")
     parser.add_argument("--log_dir", type=str, default="./models/", help="location of log dir")
     parser.add_argument("--name_model", type=str, default="PPO", help="location of log dir")
+    parser.add_argument("--n_step", type=int, default=50000, help="port to use for tcp")
+
+
 
     args = parser.parse_args()
     display = None
@@ -96,6 +100,7 @@ if __name__ == "__main__":
         "bio": "Learning to drive w PPO RL",
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
+        "headless":args.server,
         "log_level": 40
     }
 
@@ -126,15 +131,16 @@ if __name__ == "__main__":
         #env = gym.make(args.env_name, conf=conf)
 
         # Create the vectorized environment
-        env = gym.make(args.env_name, conf=conf)
-        env = MyMonitor(env, log_dir, name_model)
-        env = DummyVecEnv([lambda: env])
-        #env = make_vec_env(args.env_name, n_envs=4, monitor_dir="/models/", seed=0)
+        # env = gym.make(args.env_name, **conf)
+        # env = MyMonitor(env, log_dir, name_model)
+        # env = DummyVecEnv([lambda: env])
+        env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
+        # env = DummyVecEnv(envs)
 
         # create cnn policy
-        model = PPO("MlpPolicy", env, batch_size=256, n_steps=64, learning_rate=3e-4, verbose=1)
+        model = PPO("MlpPolicy", env, learning_rate=3e-4, verbose=1)
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
-        n_step = 100
+        n_step = args.n_step
         # set up model in learning mode with goal number of timesteps to complete
         model.learn(total_timesteps=n_step, callback=auto_save_callback)
 

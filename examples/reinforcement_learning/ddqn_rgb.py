@@ -217,10 +217,11 @@ def run_ddqn(args):
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
+        "headless": args.server
     }
 
     # Construct gym environment. Starts the simulator if path is given.
-    env = gym.make(args.env_name, conf=conf)
+    env = gym.make(args.env_name, **conf)
 
     # # not working on windows...
     def signal_handler(signal, frame):

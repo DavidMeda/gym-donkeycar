@@ -31,7 +31,7 @@ def supply_defaults(conf):
     for key, val in defaults:
         if key not in conf:
             conf[key] = val
-            print(f"Setting default: {key} {val}")
+            # print(f"Setting default: {key} {val}")
 
 
 class DonkeyEnv(gym.Env):
@@ -48,7 +48,7 @@ class DonkeyEnv(gym.Env):
     THROTTLE_MAX = 1.0
     VAL_PER_PIXEL = 255
 
-    def __init__(self, level, conf=None):
+    def __init__(self, level, **conf):
         super().__init__()
         print("starting DonkeyGym env")
         
@@ -75,7 +75,7 @@ class DonkeyEnv(gym.Env):
             self.proc = DonkeyUnityProcess()
             # the unity sim server will bind to the host ip given
             # headless =False disable rendereing
-            self.proc.start(conf["exe_path"], headless=True, host="0.0.0.0", port=conf["port"])
+            self.proc.start(conf["exe_path"], headless=conf["headless"], host="0.0.0.0", port=conf["port"])
             # wait for simulator to startup and begin listening
             time.sleep(conf["start_delay"])
 
