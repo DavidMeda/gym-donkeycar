@@ -131,10 +131,10 @@ if __name__ == "__main__":
         #env = gym.make(args.env_name, conf=conf)
 
         # Create the vectorized environment
-        # env = gym.make(args.env_name, **conf)
-        # env = MyMonitor(env, log_dir, name_model)
-        # env = DummyVecEnv([lambda: env])
-        env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
+        env = gym.make(args.env_name, **conf)
+        env = MyMonitor(env, log_dir, name_model)
+        env = DummyVecEnv([lambda: env])
+        #env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
         # env = DummyVecEnv(envs)
 
         # create cnn policy
