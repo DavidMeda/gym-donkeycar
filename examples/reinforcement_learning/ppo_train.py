@@ -1,19 +1,16 @@
-"""
-file: ppo_train.py
-author: Tawn Kramer
-date: 13 October 2018
-notes: ppo2 test from stable-baselines here:
-https://github.com/hill-a/stable-baselines
-"""
 import argparse
 import uuid
 import gym_donkeycar
+import os
 import gym
 from stable_baselines3 import PPO
 #from stable_baselines3.common import set_global_seeds
 from stable_baselines3.common.vec_env import DummyVecEnv
-from gym_donkeycar.envs import donkey_env
 from pyvirtualdisplay import Display
+import torch
+from stable_baselines3.common.evaluation import evaluate_policy
+from callbacks import SaveOnBestTrainingRewardCallback
+from wrappers import MyMonitor
 
 
 def make_env(env_id, rank, conf, seed=0):
@@ -36,8 +33,8 @@ def make_env(env_id, rank, conf, seed=0):
 
 
 if __name__ == "__main__":
-    display = Display(visible=False, size=(1920, 1080))
-    display.start()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("Torch device avariable:", device)
 
     # Initialize the donkey environment
     # where env_name one of:
@@ -64,31 +61,42 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9091, help="port to use for tcp")
     parser.add_argument("--test", action="store_true", help="load the trained model and play")
     parser.add_argument("--multi", action="store_true", help="start multiple sims at once")
-    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
-
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
+                        help="name of donkey sim environment", choices=env_list)
+    parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="ip localhost")
+    parser.add_argument("--log_dir", type=str, default="./models/", help="location of log dir")
+    parser.add_argument("--name_model", type=str, default="PPO", help="location of log dir")
 
     args = parser.parse_args()
+    display = None
+    if args.server:
+        display = Display(visible=False, size=(1920, 1080)).start()
+        path = args.sim
+    else:
+        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe"
 
     if args.sim == "sim_path" and args.multi:
         print("you must supply the sim path with --sim when running multiple environments")
         exit(1)
 
     env_id = args.env_name
+    log_dir = args.log_dir
+    name_model = args.name_model
 
     conf = {
-        "exe_path": "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe",
-        #"exe_path":args.sim,
-        "host": "127.0.0.1",
+        "exe_path": path,
+        "host": args.host,
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
-        "car_name": "me",
+        "car_name": "Schumacher",
         "font_size": 30,
         "racer_name": "PPO",
-        "country": "USA",
         "bio": "Learning to drive w PPO RL",
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
+        "log_level": 40
     }
 
     if args.test:
@@ -97,13 +105,16 @@ if __name__ == "__main__":
         env = gym.make(args.env_name, conf=conf)
         env = DummyVecEnv([lambda: env])
 
-        model = PPO.load("models/ppo_donkey")
+        model = PPO.load(os.path.join(log_dir,  "ppo_donkey_MLP_100k_best_model"))
+        print(model.policy)
+
         print("Loaded model")
-        # mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
-        # print("Evaluation\n", mean_reward,"\n",std_reward,"\n")
+        #mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
+        #print("Evaluation\n", mean_reward,"\n",std_reward,"\n")
         obs = env.reset()
         for i in range(1000):
             action, _states = model.predict(obs)
+            # print(action)
             obs, rewards, dones, info = env.step(action)
             env.render()
 
@@ -115,35 +126,22 @@ if __name__ == "__main__":
         #env = gym.make(args.env_name, conf=conf)
 
         # Create the vectorized environment
-        env = DummyVecEnv([make_env(args.env_name, i, conf=conf) for i in range(4)])
+        env = gym.make(args.env_name, conf=conf)
+        env = MyMonitor(env, log_dir, name_model)
+        env = DummyVecEnv([lambda: env])
+        #env = make_vec_env(args.env_name, n_envs=4, monitor_dir="/models/", seed=0)
 
         # create cnn policy
-        model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./models/")
-
+        model = PPO("MlpPolicy", env, batch_size=256, n_steps=64, learning_rate=3e-4, verbose=1)
+        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
+        n_step = 100
         # set up model in learning mode with goal number of timesteps to complete
-        model.learn(total_timesteps=100)
-
-        obs = env.reset()
-
-        for i in range(10):
-
-            action, _states = model.predict(obs)
-
-            obs, rewards, dones, info = env.step(action)
-
-            try:
-                env.render()
-            except Exception as e:
-                print(e)
-                print("failure in render, continuing...")
-
-            if i % 100 == 0:
-                print("saving...")
-                model.save("ppo_donkey")
+        model.learn(total_timesteps=n_step, callback=auto_save_callback)
 
         # Save the agent
-        model.save("ppo_donkey")
+        model.save(os.path.join(log_dir,  name_model))
         print("done training")
+        if args.server:
+            display.stop()
 
     env.close()
-    display.stop()
