@@ -128,7 +128,7 @@ class DDQNAgent:
             # print("Return Max Q Prediction")
             q_value = self.model.predict(s_t)
             # print("get_action() prediction: Steering: ", linear_unbin_steering(q_value[0][0]),
-            #     "\tTrottle: ",linear_unbin_throttle(q_value[1][0]), " bins:", q_value[1][0])
+            #     "\tTrottle: ",linear_unbin_throttle(q_value[1][0]))
             
             # Convert q array to steering value and throttle value
             actions.append(linear_unbin_steering(q_value[0][0]))

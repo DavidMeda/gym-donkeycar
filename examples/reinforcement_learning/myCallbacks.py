@@ -3,6 +3,8 @@ from stable_baselines3 import TD3
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.callbacks import BaseCallback
 import os
+from typing import Optional
+import optuna
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
@@ -48,3 +50,32 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                   self.model.save(self.save_path)
 
         return True
+
+
+class StopTrainingOnMaxTimestep(BaseCallback):
+  """
+  Stop the training once a maximum number of timestep are played.
+
+  :param max_timestep: Maximum number of episodes to stop training.
+  :param verbose: Select whether to print information about when training ended by reaching ``max_timestep``
+  """
+
+  def __init__(self, max_timestep: int, verbose: int = 0):
+    super(StopTrainingOnMaxTimestep, self).__init__(verbose=verbose)
+    self._total_max_timestep = max_timestep
+    self.n_timestep = 0
+
+
+  def _on_step(self) -> bool:
+    done = self.locals.get("done") if self.locals.get("done") is not None else self.locals.get("dones")
+    if done:
+      self.n_timestep = 0
+
+    self.n_timestep += 1
+    continue_training = self.n_timestep < self._total_max_timestep
+    if self.verbose > 0 and not continue_training:
+        print(
+              f" Stopping TRAINING with a total of {self.num_timesteps} steps because the "
+              f"{self.locals.get('tb_log_name')} model reached max_timestep={self._total_max_timestep}, "
+          )
+    return continue_training

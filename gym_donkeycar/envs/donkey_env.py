@@ -84,13 +84,14 @@ class DonkeyEnv(gym.Env):
 
         # steering and throttle
         self.action_space = spaces.Box(
-            low=np.array([self.STEER_LIMIT_LEFT, self.THROTTLE_MIN]),
-            high=np.array([self.STEER_LIMIT_RIGHT, self.THROTTLE_MAX]),
-            dtype=np.float32,
+            low=np.array([np.float32(self.STEER_LIMIT_LEFT), np.float32(self.THROTTLE_MIN)]),
+            high=np.array([np.float32(self.STEER_LIMIT_RIGHT), np.float32(self.THROTTLE_MAX)]),
+            dtype=np.float32
         )
 
         # camera sensor data
-        self.observation_space = spaces.Box(0, self.VAL_PER_PIXEL, self.viewer.get_sensor_size(), dtype=np.uint8)
+        self.observation_space = spaces.Box(np.float32(0), np.float32(self.VAL_PER_PIXEL),
+                                            self.viewer.get_sensor_size(), dtype=np.float32)
 
         # simulation related variables.
         self.seed()

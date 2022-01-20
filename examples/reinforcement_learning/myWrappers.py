@@ -13,7 +13,7 @@ class MyMonitor(gym.Wrapper):
         self.file = open(os.path.join(str(log_dir), name_model+"_metric.csv"), "w+")
         self.log = writer(self.file)
         self.log.writerow(['Episode', 'Timestep', 'Avg Steer', 'Min Reward',
-                      'Avg Reward', 'Max Reward', 'Reward Sum', 'Episode Length',
+                      'Avg Reward', 'Max Reward', 'Reward Sum', 'Episode Length (timestep)',
                      'Episode Time','Avg Speed', 'Max Speed', 'Min CTE', 'Avg CTE', 'Max CTE', 'Distance',
                       "Average Throttle", "Max Throttle", "Min Throttle",
                       "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE"])
@@ -62,8 +62,8 @@ class MyMonitor(gym.Wrapper):
         self.episode_len += 1
 
         if done:
-            print("FINISH EPISODE:", self.episode, " time ep: ", round(time.time() - self.start_episode, 4), " ep length tot:",
-                  self.episode_len, " avg reward:", round(np.mean(self.rewards), 4), " tot distance:", round(self.distance, 4), "avg throttle:", round(np.mean(self.throttles), 4))
+            print("FINISH EPISODE:", self.episode, " time ep: ", round(time.time() - self.start_episode, 4), " sum reward:",
+                  round(np.sum(self.rewards), 4), " avg reward:", round(np.mean(self.rewards), 4), " tot distance:", round(self.distance, 4), "avg throttle:", round(np.mean(self.throttles), 4))
 
             self.log.writerow([self.episode, self.time_step, round(np.mean(self.steers), 4), round(np.min(self.rewards), 4),
                                round(np.mean(self.rewards), 4), round(np.max(self.rewards), 4), round(np.sum(self.rewards), 4),
@@ -88,7 +88,25 @@ class MyMonitor(gym.Wrapper):
         Returns the total number of timesteps
         """
         return self.time_step
+
+
+class NormalizeObservation(gym.Wrapper):
+    def __init__(self, env: gym.Env) -> None:
+        super().__init__(env)
+        self.env = env
+
         
+    def reset(self, **kwargs) -> GymObs:
+        obs = self.env.reset(**kwargs)
+        obs = obs.astype(np.float16)
+        obs /= 255.0
+        return obs
+
+    def step(self, action: Union[np.ndarray, int]) -> GymStepReturn:
+        observation, reward, done, info = self.env.step(action)
+        observation = observation.astype(np.float16)
+        observation /= 255.0
+        return observation, reward, done, info
 
 
 
