@@ -28,6 +28,7 @@ wheels/
 .installed.cfg
 *.egg
 examples/reinforcement_learning/models/*
+examples/reinforcement_learning/data/*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

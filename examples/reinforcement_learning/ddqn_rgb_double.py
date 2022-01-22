@@ -227,6 +227,7 @@ def run_ddqn(args):
 
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, **conf)
+    env = MyMonitor(env, "./models", args.model)
 
     # # not working on windows...
     def signal_handler(signal, frame):
@@ -250,32 +251,10 @@ def run_ddqn(args):
             agent.load_model(args.model)
         agent.model.summary()
         
-        name_model = args.model.replace(".h5", "")
-        file = open(str(name_model)+"_metric.csv", "w+")
-        log = writer(file)
-        log.writerow(['Episode','Timestep', 'Avg Steer', 'Min Reward', 
-        'Avg Reward', 'Max Reward','Reward Sum', 'Episode Length',  
-        'Max Q steering', 'Max Q throttle', 'Epsilon','Episode Time', 
-        'Avg Speed','Max Speed','Min CTE','Avg CTE','Max CTE','Distance', 
-        "Average Throttle", "Max Throttle", "Min Throttle",
-        "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE"])
-
         for e in range(EPISODES):
             print("START EPISODE: ", e)
             done = False
             obs = env.reset()
-
-            # Stats
-            start_episode = time.time()
-            episode_len = 0
-            steers = []
-            throttles = []
-            rewards =[]
-            velocities = []
-            ctes = []
-            ctes_absolute = []
-            distance = 0.0
-            distance_time = start_episode
 
             need_frames = img_frames-1
             x_t = agent.process_image(obs)
@@ -303,9 +282,7 @@ def run_ddqn(args):
                 # Get action for the current state and go one step in environment
                 action = agent.get_action(s_t)
                 next_obs, reward, done, info = env.step(action)
-                
                 x_t1 = agent.process_image(next_obs)
-
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)
                 s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
                
@@ -317,22 +294,9 @@ def run_ddqn(args):
 
                 if agent.train:
                     agent.train_replay()
-                    # stats
-                    steers.append(action[0])
-                    throttles.append(action[1])
-                    velocities.append(round(info["speed"], 4))
-                    rewards.append(round(reward,4))
-                    ctes.append(round(info["cte"], 4))
-                    ctes_absolute.append(round(abs(info["cte"]), 4))
-                    distance += info["speed"]*(time.time()-distance_time)
-                    distance_time = time.time()
 
                 s_t = s_t1
                 agent.t = agent.t + 1
-                episode_len = episode_len + 1
-                if agent.t % 50 == 0:
-                    print(" episode", e, "/ timestep", agent.t, "/ reward",
-                        round(reward, 4), "/ episode len", episode_len, "/ q_max [steer, throt] ", agent.max_Q,)
 
                 if done:
                     # Every episode update the target model to be same with model
@@ -341,18 +305,8 @@ def run_ddqn(args):
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
-                        # stat save
-                        log.writerow([e,agent.t, round(np.mean(steers), 4), round(np.min(rewards), 4), 
-                            round(np.mean(rewards), 4), round(np.max(rewards), 4), round(np.sum(rewards),4), 
-                            episode_len, agent.max_Q[0], agent.max_Q[1], agent.epsilon, round((time.time() - start_episode), 4),
-                            round(np.mean(velocities), 4), round(np.max(velocities), 4), round(np.min(ctes), 4), round(np.mean(ctes), 4),
-                            round(np.max(ctes), 4), round(distance, 4),  round(np.mean(throttles), 4),round(np.max(throttles), 4),
-                            round(np.min(throttles), 4), round(np.mean(ctes_absolute), 4), round(np.min(ctes_absolute), 4), round(np.max(ctes_absolute), 2)    ])
-
-                    print("FINISH EPISODE:", e, " time ep: ", round(time.time() - start_episode,4), " epsilon:", round(agent.epsilon, 4), " ep length tot:", episode_len," avg reward:", round(np.mean(rewards),4)," tot distance:", round(distance, 4), "avg throttle:", round(np.mean(throttles), 4))
 
         print("\nTotal time training (min): ", (time.time() - t) / 60.0)
-        file.flush()
         env.close()
         if args.server:
             display.stop()
@@ -360,7 +314,6 @@ def run_ddqn(args):
         print("stopping run...")
     finally:
         env.close()
-        file.flush()
         if args.server:
             display.stop()
 
@@ -389,7 +342,6 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
     parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
-    parser.add_argument("--throttle", type=float, default=0.3, help="constant throttle for driving")
     parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
     parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
     parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
