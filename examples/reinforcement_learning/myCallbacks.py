@@ -4,7 +4,6 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_r
 from stable_baselines3.common.callbacks import BaseCallback
 import os
 from typing import Optional
-import optuna
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """

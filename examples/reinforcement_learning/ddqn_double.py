@@ -257,7 +257,7 @@ def run_ddqn(args):
 
     # print("state_size ",state_size)
     # print("action_space ",action_space)
-    
+
     t = time.time()
     try:
         agent = DDQNAgent(state_size, action_space, train=not args.test)
@@ -293,7 +293,7 @@ def run_ddqn(args):
                     
                     need_frames -= 1
                     continue
-
+                
                 # Get action for the current state and go one step in environment
                 action = agent.get_action(s_t)
                 next_obs, reward, done, info = env.step(action)
