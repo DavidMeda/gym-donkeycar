@@ -71,5 +71,5 @@ if __name__=="__main__":
 
     print(len(img_list), len(json_list))
     model_path = "C:\\Users\\david\\Documents\\project\\gym-donkeycar\\examples\\reinforcement_learning\\models"
-    name_model = "model_withacc_ep23k_20gen2021.h5"
-    MSE_stering, MSE_throttle, MAE_stering, MAE_throttle =eval_model(os.path.join(model_path, name_model), img_list, json_list)
+    name_model = "model_withacc_ep50k_24gen2021.h5"
+    MSE_stering, MSE_throttle, MAE_stering, MAE_throttle = eval_model(os.path.join(model_path, name_model), img_list, json_list)

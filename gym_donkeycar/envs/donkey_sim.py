@@ -125,6 +125,9 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.vel_y = 0.0
         self.vel_z = 0.0
         self.lidar = []
+        self.n_step_low_speed = 0
+        self.min_speed = 1.0
+
 
         # car in Unity lefthand coordinate system: roll is Z, pitch is X and yaw is Y
         self.roll = 0.0
@@ -347,6 +350,9 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.vel_y = 0.0
         self.vel_z = 0.0
         self.lidar = []
+        self.n_step_low_speed = 0
+        self.n_step = 0
+        self.n_step = 0
 
         # car
         self.roll = 0.0
@@ -357,6 +363,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         return self.camera_img_size
 
     def take_action(self, action):
+        self.n_step += 1
         self.send_control(action[0], action[1])
 
     def observe(self):
@@ -527,6 +534,12 @@ class DonkeyUnitySimHandler(IMesgHandler):
         elif self.dq:
             logger.debug("disqualified")
             self.over = True
+        if abs(self.speed) < self.min_speed and self.n_step > 200:
+            self.n_step_low_speed += 1
+            if self.n_step_low_speed > 60:
+                self.over = True
+        else: 
+            self.n_step_low_speed = 0
 
     def on_scene_selection_ready(self, data):
         logger.debug("SceneSelectionReady ")

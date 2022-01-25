@@ -14,6 +14,7 @@ from myCallbacks import SaveOnBestTrainingRewardCallback, StopTrainingOnMaxTimes
 from myWrappers import MyMonitor, NormalizeObservation
 
 
+
 def make_env(env_id, rank, conf, seed=0):
     """
     Utility function for multiprocessed env.
@@ -77,7 +78,7 @@ if __name__ == "__main__":
         display = Display(visible=False, size=(1920, 1080)).start()
         path = args.sim
     else:
-        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe"
+        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\v21.07\\donkey_sim.exe"
 
     # if args.sim == "sim_path" and args.multi:
     #     print("you must supply the sim path with --sim when running multiple environments")
