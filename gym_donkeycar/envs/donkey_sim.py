@@ -127,6 +127,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lidar = []
         self.n_step_low_speed = 0
         self.min_speed = 1.0
+        self.n_step = 0
 
 
         # car in Unity lefthand coordinate system: roll is Z, pitch is X and yaw is Y
@@ -351,7 +352,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.vel_z = 0.0
         self.lidar = []
         self.n_step_low_speed = 0
-        self.n_step = 0
         self.n_step = 0
 
         # car

@@ -10,7 +10,7 @@ import torch
 import numpy as np
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
-from myCallbacks import SaveOnBestTrainingRewardCallback, StopTrainingOnMaxTimestep
+from myCallbacks import SaveOnBestTrainingRewardCallback, StopTrainingOnMaxTimestep, CheckpointCallback
 from myWrappers import MyMonitor, NormalizeObservation
 
 
@@ -160,10 +160,11 @@ if __name__ == "__main__":
 
             model = PPO("MlpPolicy", env, verbose=1, **best_param)
         
-        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, verbose=0)
+        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
+        save_checkpoint = CheckpointCallback(save_freq=1000, name_prefix=name_model+"_checkpoint", verbose=1)
         callbacks = StopTrainingOnMaxTimestep(n_step, 1)
         # set up model in learning mode with goal number of timesteps to complete
-        model.learn(total_timesteps=n_step, callback=[auto_save_callback, callbacks])
+        model.learn(total_timesteps=n_step, callback=[auto_save_callback, save_checkpoint, callbacks])
 
         # Save the agent
         model.save(os.path.join(log_dir,  name_model))

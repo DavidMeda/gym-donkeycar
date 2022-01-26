@@ -5,6 +5,37 @@ from stable_baselines3.common.callbacks import BaseCallback
 import os
 from typing import Optional
 
+
+class CheckpointCallback(BaseCallback):
+    """
+    Callback for saving a model every ``save_freq`` calls
+    to ``env.step()``.
+
+    :param save_freq:
+    :param save_path: Path to the folder where the model will be saved.
+    :param name_prefix: Common prefix to the saved models
+    :param verbose:
+    """
+
+    def __init__(self, save_freq: int, save_path: str, name_prefix: str = "rl_model", verbose: int = 0):
+        super(CheckpointCallback, self).__init__(verbose)
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+
+    def _init_callback(self) -> None:
+        # Create folder if needed
+        if self.save_path is not None:
+            os.makedirs(self.save_path, exist_ok=True)
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.save_freq == 0:
+            path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps")
+            self.model.save(path)
+            if self.verbose > 1:
+                print(f"Saving model checkpoint to {path} at timestep {self.num_timesteps}")
+        return True
+
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
     Callback for saving a model (the check is done every ``check_freq`` steps)
@@ -16,17 +47,12 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
     :param verbose: (int)
     """
 
-    def __init__(self, check_freq: int, log_dir: str, verbose=1):
+    def __init__(self, check_freq: int, log_dir: str, name_model: str, verbose=1):
         super(SaveOnBestTrainingRewardCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.log_dir = log_dir
-        self.save_path = os.path.join(log_dir, 'best_model')
+        self.save_path = os.path.join(log_dir, name_model+'_best_model')
         self.best_mean_reward = -np.inf
-
-    def _init_callback(self) -> None:
-        # Create folder if needed
-        if self.save_path is not None:
-            os.makedirs(self.save_path, exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
