@@ -1,10 +1,7 @@
 import numpy as np
-from stable_baselines3 import TD3
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.callbacks import BaseCallback
 import os
-from typing import Optional
-
 
 class CheckpointCallback(BaseCallback):
     """
@@ -30,9 +27,9 @@ class CheckpointCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.n_calls % self.save_freq == 0:
-            path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps")
+            path = os.path.join(self.save_path, self.name_prefix)
             self.model.save(path)
-            if self.verbose > 1:
+            if self.verbose > 0:
                 print(f"Saving model checkpoint to {path} at timestep {self.num_timesteps}")
         return True
 

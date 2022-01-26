@@ -5,7 +5,24 @@ from stable_baselines3.common.type_aliases import GymObs, GymStepReturn
 from typing import  Union
 import numpy as np
 import os
+from typing import Optional
+from autoencoder import load_ae
 
+
+class AutoEncoderWrapper(gym.Wrapper):
+    def __init__(self, env, ae_path: Optional[str] = os.environ.get("AAE_PATH")):
+        super().__init__(env)
+        assert ae_path is not None
+        self.ae = load_ae(ae_path)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.ae.z_size,), dtype=np.float32)
+
+    def reset(self):
+        # Convert to BGR
+        return self.ae.encode_from_raw_image(self.env.reset()[:, :, ::-1]).flatten()
+
+    def step(self, action):
+        obs, reward, done, infos = self.env.step(action)
+        return self.ae.encode_from_raw_image(obs[:, :, ::-1]).flatten(), reward, done, infos
 
 class MyMonitor(gym.Wrapper):
     def __init__(self, env: gym.Env, log_dir, name_model) -> None:

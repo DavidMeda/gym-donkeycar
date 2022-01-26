@@ -11,7 +11,7 @@ import numpy as np
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from myCallbacks import SaveOnBestTrainingRewardCallback, StopTrainingOnMaxTimestep, CheckpointCallback
-from myWrappers import MyMonitor, NormalizeObservation
+from myWrappers import MyMonitor, NormalizeObservation, AutoEncoderWrapper
 
 
 
@@ -142,11 +142,12 @@ if __name__ == "__main__":
         # Create the vectorized environment
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model)
-        env = NormalizeObservation(env)
+        #env = NormalizeObservation(env)
+        env = AutoEncoderWrapper(env, os.path.join(log_dir, "ae-32_1643197381.pkl"))
         env = Monitor(env, log_dir)
         env = DummyVecEnv([lambda: env])
         
-
+        print("ENV CREATE")
         # Multiprocess n_env in 1 process run asynchronus
         # env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
         model = None
@@ -161,7 +162,8 @@ if __name__ == "__main__":
             model = PPO("MlpPolicy", env, verbose=1, **best_param)
         
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
-        save_checkpoint = CheckpointCallback(save_freq=1000, name_prefix=name_model+"_checkpoint", verbose=1)
+        save_checkpoint = CheckpointCallback(save_freq=n_step//1000, save_path=log_dir,
+                                             name_prefix=name_model + "_checkpoint", verbose=1)
         callbacks = StopTrainingOnMaxTimestep(n_step, 1)
         # set up model in learning mode with goal number of timesteps to complete
         model.learn(total_timesteps=n_step, callback=[auto_save_callback, save_checkpoint, callbacks])

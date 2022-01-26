@@ -118,7 +118,7 @@ if __name__ == "__main__":
     #     plt.imshow(img)
     #     plt.show()
     log_dir = "C:/Users/david/Documents/project/gym-donkeycar/examples/reinforcement_learning/models"
-    name_model = "PPO_100k_tuning"
+    name_model = "PPO_250k_best_model"
 
     model = PPO.load(os.path.join(log_dir, name_model))
     print("Loaded model\n", "-" * 30, "\n", model.policy, "\n", "-" * 30)
