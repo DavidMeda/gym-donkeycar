@@ -110,7 +110,8 @@ if __name__ == "__main__":
         # Make an environment test our trained policy
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model+"_test")
-        env = NormalizeObservation(env)
+        # env = NormalizeObservation(env)
+        env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
         env = Monitor(env, log_dir)
         env = DummyVecEnv([lambda: env])
 
@@ -143,7 +144,7 @@ if __name__ == "__main__":
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model)
         #env = NormalizeObservation(env)
-        env = AutoEncoderWrapper(env, os.path.join(log_dir, "ae-32_1643197381.pkl"))
+        env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
         env = Monitor(env, log_dir)
         env = DummyVecEnv([lambda: env])
         
@@ -156,13 +157,16 @@ if __name__ == "__main__":
             print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
         else:
             # create cnn policy
-            best_param = {'batch_size': 8, 'n_steps': 256, 'gamma': 0.995, 'learning_rate': 1.6317237858212062e-05, 'ent_coef': 0.006796716848635915,
-                          'clip_range': 0.3, 'n_epochs': 1, 'gae_lambda': 0.92, 'max_grad_norm': 0.6, 'vf_coef': 0.7925006174080169, 'sde_sample_freq': 16}
+            # best_param = {'batch_size': 8, 'n_steps': 256, 'gamma': 0.995, 'learning_rate': 1.6317237858212062e-05, 'ent_coef': 0.006796716848635915,
+            #               'clip_range': 0.3, 'n_epochs': 1, 'gae_lambda': 0.92, 'max_grad_norm': 0.6, 'vf_coef': 0.7925006174080169, 'sde_sample_freq': 16}
+            #meglio usare 'n_steps': 256, 'batch_size': 256,
+            best_param = {'batch_size': 512, 'n_steps': 32, 'gamma': 0.99, 'learning_rate': 0.009943591655201678, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
+                          'n_epochs': 5, 'gae_lambda': 0.99, 'max_grad_norm': 2, 'vf_coef': 0.6215998804092693,  'sde_sample_freq': 8}
 
             model = PPO("MlpPolicy", env, verbose=1, **best_param)
         
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
-        save_checkpoint = CheckpointCallback(save_freq=n_step//1000, save_path=log_dir,
+        save_checkpoint = CheckpointCallback(save_freq=n_step//2, save_path=log_dir,
                                              name_prefix=name_model + "_checkpoint", verbose=1)
         callbacks = StopTrainingOnMaxTimestep(n_step, 1)
         # set up model in learning mode with goal number of timesteps to complete
