@@ -1,5 +1,6 @@
-from sqlalchemy import true
-from ddqn_double import DDQNAgent
+import sys
+# setting path
+sys.path.append('../reinforcement_learning')
 import cv2
 import numpy as np
 import glob
@@ -7,7 +8,7 @@ import os
 from gym import spaces
 import json
 from tensorflow.keras.losses import MSE, MAE
-from ddqn_double import  linear_unbin_steering, linear_unbin_throttle
+from DDQN_double import  DDQNAgent, linear_unbin_steering, linear_unbin_throttle
 
 img_rows, img_cols = 120, 160
 

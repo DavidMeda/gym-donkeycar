@@ -4,6 +4,9 @@ author: Felix Yu
 date: 2018-09-12
 original: https://github.com/flyyufelix/donkey_rl/blob/master/donkey_rl/src/ddqn.py
 """
+import sys
+# setting path
+sys.path.append('../reinforcement_learning')
 import argparse
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'

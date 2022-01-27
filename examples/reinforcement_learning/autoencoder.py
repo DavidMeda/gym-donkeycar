@@ -2,7 +2,19 @@ import cv2
 import numpy as np
 import torch as th
 from torch import nn
-from config import INPUT_DIM, RAW_IMAGE_SHAPE, ROI
+
+# Raw camera input
+CAMERA_HEIGHT = 120
+CAMERA_WIDTH = 160
+MARGIN_TOP = CAMERA_HEIGHT // 3
+# Region Of Interest
+ROI = [0, MARGIN_TOP, CAMERA_WIDTH, CAMERA_HEIGHT - MARGIN_TOP]
+# Fixed input dimension for the autoencoder
+IMAGE_WIDTH = 160
+IMAGE_HEIGHT = 80
+N_CHANNELS = 3
+RAW_IMAGE_SHAPE = (CAMERA_HEIGHT, CAMERA_WIDTH, N_CHANNELS)
+INPUT_DIM = (IMAGE_HEIGHT, IMAGE_WIDTH, N_CHANNELS)
 
 
 class Autoencoder(nn.Module):
@@ -252,5 +264,4 @@ def load_ae(path=None, z_size=None, quantize=False):
     else:
         autoencoder = Autoencoder.load(path)
     print("Dim AE = {}".format(autoencoder.z_size))
-    print("PyTorch", th.__version__)
     return autoencoder

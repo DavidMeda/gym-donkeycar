@@ -29,6 +29,7 @@ wheels/
 *.egg
 examples/reinforcement_learning/models/*
 examples/reinforcement_learning/data/*
+examples/reinforcement_learning/aae-train-donkeycar/*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

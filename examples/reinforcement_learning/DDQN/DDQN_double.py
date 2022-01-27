@@ -4,6 +4,9 @@ author: Felix Yu
 date: 2018-09-12
 original: https://github.com/flyyufelix/donkey_rl/blob/master/donkey_rl/src/ddqn.py
 """
+import sys
+# setting path
+sys.path.append('../reinforcement_learning')
 import argparse
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -22,15 +25,20 @@ import gym_donkeycar
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Activation, Conv3D, Dense, Flatten, Dropout, Input
+from tensorflow.keras.layers import Activation, Conv2D, Dense, Flatten, Dropout, Input
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import *
 from pyvirtualdisplay import Display
 from csv import writer
+from myWrappers import MyMonitor
 
 
+# EPISODES = 2
+# img_rows, img_cols = 80, 80
 img_rows, img_cols = 120, 160
+# Convert image into Black and white
+# img_frames = 4  # We stack 4 frames
 
 class DDQNAgent:
     def __init__(self, state_size, action_space, train=True):
@@ -72,13 +80,14 @@ class DDQNAgent:
     def build_model(self):
         img_in = Input(shape=self.state_size, name='img_in')
         x = img_in
-        x = Conv3D(24, (5, 5, 5), strides=(2, 2, 2), padding="same", activation="relu")(x)
-        x = Conv3D(32, (5, 5, 5), strides=(2, 2, 2), padding="same", activation="relu")(x)
-        x = Conv3D(64, (5, 5, 5), strides=(2, 2, 2), padding="same", activation="relu")(x)
-        x = Conv3D(64, (3, 3, 3), strides=(2, 2, 2), padding="same", activation="relu")(x)
-        x = Conv3D(64, (3, 3, 3), strides=(1, 1, 1), padding="same", activation="relu")(x)
+        x = Conv2D(24, (5, 5), strides=(2, 2), padding="same", activation="relu")(x)
+        x = Conv2D(32, (5, 5), strides=(2, 2), padding="same", activation="relu")(x)
+        x = Conv2D(64, (5, 5), strides=(2, 2), padding="same", activation="relu")(x)
+        x = Conv2D(64, (5, 5), strides=(2, 2), padding="same", activation="relu")(x)
+        x = Conv2D(64, (5, 5), strides=(2, 2), padding="same", activation="relu")(x)
         x = Activation("relu")(x)
         x = Flatten()(x)
+
         x = Dense(512, activation='relu', name='dense_1')(x)
         x = Dropout(rate=0.2)(x)
         x = Dense(100, activation='relu', name='dense_2')(x)
@@ -91,11 +100,21 @@ class DDQNAgent:
         model = Model(inputs=[img_in], outputs=[steering_out, throttle_out])
         adam = Adam(lr=self.learning_rate)
         model.compile(loss="mse", optimizer=adam)
-
+        # model.compile(loss="mse", optimizer=adam, metrics=[MeanSquaredError(), MeanAbsoluteError(), 
+        #                                             metrics.RootMeanSquaredError(), MeanSquaredLogarithmicError(),
+        #                                             CosineSimilarity(), LogCosh()] )
         return model
 
-    def process_image(self, image):
-        img = image.astype(np.float16)
+    def rgb2gray(self, rgb):
+        """
+        take a numpy rgb image return a new single channel image converted to greyscale
+        """
+        return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
+
+    def process_image(self, obs):
+        img = self.rgb2gray(obs)
+        img = cv2.resize(img, (img_rows, img_cols))
+        img = img.astype(np.float16)
         img /= 255.0
         return img
 
@@ -112,8 +131,8 @@ class DDQNAgent:
         else:
             # print("Return Max Q Prediction")
             q_value = self.model.predict(s_t)
-            # print("get_action() prediction: Steering: ", linear_unbin(q_value[0][0], 15), 
-            #     "\tTrottle: ", linear_unbin(q_value[1][0], 9))
+            # print("get_action() prediction: Steering: ", linear_unbin_steering(q_value[0][0]),
+            #     "\tTrottle: ",linear_unbin_throttle(q_value[1][0]))
             
             # Convert q array to steering value and throttle value
             actions.append(linear_unbin_steering(q_value[0][0]))
@@ -166,8 +185,6 @@ class DDQNAgent:
         self.model.save_weights(name)
 
 # Utils Functions #
-
-
 def linear_bin_steering(val):
     bins = np.linspace(-1, 1, 20)
     b = np.digitize(val, bins, True)
@@ -175,12 +192,10 @@ def linear_bin_steering(val):
     arr[int(b)] = 1
     return arr
 
-
 def linear_unbin_steering(arr):
     b = np.argmax(arr)
     bins = np.linspace(-1, 1, 20)
     return bins[int(b)]
-
 
 def linear_bin_throttle(val):
     bins = np.linspace(0, 1, 10)
@@ -189,17 +204,16 @@ def linear_bin_throttle(val):
     arr[int(b)] = 1
     return arr
 
-
 def linear_unbin_throttle(arr):
     b = np.argmax(arr)
     bins = np.linspace(0, 1, 10)
     return bins[int(b)]
+    
 
 def run_ddqn(args):
     """
     run a DDQN training session, or test it's result, with the donkey simulator
     """
-
     display = None
     path = None
     if args.server:
@@ -215,21 +229,22 @@ def run_ddqn(args):
         "port": args.port,
         "body_style": "donkey",
         "body_rgb": (128, 128, 128),
-        "car_name": "Schumacher",
+        "car_name": "Shumacher",
         "font_size": 30,
         "racer_name": "DDQN",
+        "country": "USA",
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
+        "headless": args.server,
         "max_cte": 1.5,
-        "log_level": 40,
-        "headless": args.server
+        "log_level": 40
     }
-
+  
     # Construct gym environment. Starts the simulator if path is given.
     env = gym.make(args.env_name, **conf)
     env = MyMonitor(env, "./models", args.model)
 
-    # # not working on windows...
+    # not working on windows...
     def signal_handler(signal, frame):
         print("catching ctrl+c")
         env.unwrapped.close()
@@ -240,52 +255,55 @@ def run_ddqn(args):
     signal.signal(signal.SIGABRT, signal_handler)
 
     # Get size of state and action from environment
-    state_size = (img_rows, img_cols,  3, img_frames)
+    state_size = (img_cols, img_rows, img_frames)
     action_space = env.action_space  # Steering and Throttle
+
+    # print("state_size ",state_size)
+    # print("action_space ",action_space)
+
     t = time.time()
     try:
         agent = DDQNAgent(state_size, action_space, train=not args.test)
 
         if os.path.exists(args.model):
-            print("load the saved model")
+            print("Load the saved model from ", args.model)
             agent.load_model(args.model)
+
         agent.model.summary()
-        
+
         for e in range(EPISODES):
-            print("START EPISODE: ", e)
             done = False
             obs = env.reset()
 
             need_frames = img_frames-1
             x_t = agent.process_image(obs)
-
             a = (x_t,)
             for _ in range(img_frames - 1):
                 a = a + (x_t,)
-
-            s_t = np.stack(a, axis=3)
+            s_t = np.stack(a, axis=2)
             # In Keras, need to reshape
-            s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2], s_t.shape[3])  # 1*80*80*4
-            # print("s_t ",s_t.shape)
+            s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
+
             while not done:
-                if need_frames > 1:
+                if need_frames>1:
                     action = agent.get_action(s_t)
                     next_obs, reward, done, info = env.step(action)
 
                     x_t1 = agent.process_image(next_obs)
-                    x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)  
-                    s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=4) 
 
+                    x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  # 1x80x80x1
+                    s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=3)  # 1x80x80x4
+                    
                     need_frames -= 1
                     continue
-
+                
                 # Get action for the current state and go one step in environment
                 action = agent.get_action(s_t)
                 next_obs, reward, done, info = env.step(action)
                 x_t1 = agent.process_image(next_obs)
-                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], x_t1.shape[2], 1)
-                s_t1 = np.append(x_t1, s_t[:, :, :, :, :3], axis=4)
-               
+                x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  
+                s_t1 = np.append(x_t1, s_t[:, :, :, :img_frames-1], axis=3)  
+
                 # Save the sample <s, a, r, s'> to the replay memory
                 steering_bin = np.argmax(linear_bin_steering(action[0]))
                 throttle_bin = np.argmax(linear_bin_throttle(action[1]))
@@ -301,7 +319,6 @@ def run_ddqn(args):
                 if done:
                     # Every episode update the target model to be same with model
                     agent.update_target_model()
-
                     # Save model for each episode
                     if agent.train:
                         agent.save_model(args.model)
@@ -321,7 +338,6 @@ def run_ddqn(args):
 if __name__ == "__main__":
 
     # Initialize the donkey environment
-    # where env_name one of:
     env_list = [
         "donkey-warehouse-v0",
         "donkey-generated-roads-v0",
@@ -336,14 +352,18 @@ if __name__ == "__main__":
     ]
 
     parser = argparse.ArgumentParser(description="ddqn")
-    parser.add_argument("--sim",type=str,default="manual",help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.")
-    parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
+    parser = argparse.ArgumentParser(description="ddqn")
+    parser.add_argument("--sim", type=str, default="manual",
+                        help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="ip localhost")
+    parser.add_argument("--model", type=str, default="rl_driver.h5", help="path to model")
     parser.add_argument("--test", action="store_true", help="agent uses learned model to navigate env")
-    parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
     parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
-    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment", choices=env_list)
-    parser.add_argument("--episode", type=int, default=4, help="number of episode for training")
+    parser.add_argument("--port", type=int, default=9091, help="port to use for websockets")
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",
+                        help="name of donkey sim environment", choices=env_list)
+    parser.add_argument("--episode", type=int, default=5, help="number of episode for training")
     parser.add_argument("--stack_frames", type=int, default=4, help="number of frame for stack")
+    
     args = parser.parse_args()
     run_ddqn(args)

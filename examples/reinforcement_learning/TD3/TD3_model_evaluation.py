@@ -1,4 +1,6 @@
-from codecs import strict_errors
+import sys
+# setting path
+sys.path.append('../reinforcement_learning')
 import os
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -11,9 +13,9 @@ import glob
 import json
 from sklearn.model_selection import train_test_split
 import shutil
-import matplotlib.pyplot as plt
-from stable_baselines3.ppo import PPO
+from stable_baselines3 import TD3
 import warnings
+from autoencoder import load_ae
 warnings.filterwarnings('ignore')
 
 
@@ -63,21 +65,26 @@ class CustomImageDataset(Dataset):
         label_json = json.load(open(self.label_list[idx], "r"))
         img_name = label_json["cam/image_array"]
         image = Image.open(os.path.join(self.data_dir, img_name))
-        image = self.convert_tensor(image).permute(1, 2, 0)
+        if encoder is not None:
+            image = np.asarray(image)
+            image = encoder.encode_from_raw_image(image).flatten()
+        else:
+            image = self.convert_tensor(image).permute(1, 2, 0)
         label = torch.tensor([label_json["user/angle"], label_json["user/throttle"]], dtype=torch.float32)
         return image, label
 
-def eval_model(model, test_set, loss_func1, loss_func2):
+
+def eval_model(model, test_set, loss_func1, loss_func2, encoder=None,):
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # print("Torch device avariable:", device)
     loss1_steering = []
     loss1_throttle = []
     loss2_steering = []
     loss2_throttle = []
+
     with torch.no_grad():
         # model.eval()
         for i, (x_test, y_test) in enumerate(test_set):
-
             y_pred = model.predict(x_test)
             # model.predict return tuple (array[steering, throttle], None)
             y_pred = torch.tensor(y_pred[0])
@@ -118,12 +125,16 @@ if __name__ == "__main__":
     #     plt.imshow(img)
     #     plt.show()
     log_dir = "C:/Users/david/Documents/project/gym-donkeycar/examples/reinforcement_learning/models"
-    name_model = "PPO_250k_best_model"
+    name_model = "TD3_encoder_1M_checkpoint_100000_steps"
 
-    model = PPO.load(os.path.join(log_dir, name_model))
-    print("Loaded model\n", "-" * 30, "\n", model.policy, "\n", "-" * 30)
+    model = TD3.load(os.path.join(log_dir, name_model))
+    # print("Loaded model\n", "-" * 30, "\n", model.policy, "\n", "-" * 30)
+    encoder = None
+    name_encoder = "encoder_1000.pkl"
+    encoder = load_ae(os.path.join(log_dir, name_encoder))
 
-    loss1_steering, loss1_throttle, loss2_steering, loss2_throttle = eval_model(model, dataset, MSELoss(), L1Loss())
+    loss1_steering, loss1_throttle, loss2_steering, loss2_throttle = \
+        eval_model(model, dataset,  MSELoss(), L1Loss(), encoder)
     print(
         f"MSE_steering={loss1_steering}, MSE_throttle={loss1_throttle}, \nMAE_steering={loss2_steering}, MAE_throttle={loss2_throttle}")
 

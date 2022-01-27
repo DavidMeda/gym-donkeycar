@@ -1,3 +1,6 @@
+import sys
+# setting path
+sys.path.append('../reinforcement_learning')
 import argparse
 import uuid
 import gym_donkeycar 
