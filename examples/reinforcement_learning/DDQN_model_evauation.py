@@ -1,16 +1,17 @@
-import sys
-# setting path
-sys.path.append('../reinforcement_learning')
+
+from tqdm import tqdm
 import cv2
 import numpy as np
 import glob
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from gym import spaces
 import json
 from tensorflow.keras.losses import MSE, MAE
 from DDQN_double import  DDQNAgent, linear_unbin_steering, linear_unbin_throttle
 
 img_rows, img_cols = 120, 160
+
 
 
 def eval_model(model_path, img_path, json_path):
@@ -39,11 +40,13 @@ def eval_model(model_path, img_path, json_path):
         a = a + (x_t,)
     s_t = np.stack(a, axis=2)
     s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  # 1*80*80*4
-
+    pbar = tqdm(total=len(img_path))
     for img, json_ in zip(img_path[1:], json_path[1:]):
 
         q_value = agent.model.predict(s_t)
 
+        # print(f"y_pred={linear_unbin_steering(q_value[0][0])},{linear_unbin_throttle(q_value[1][0])}")
+        # print("y_true={}, {}".format(file["user/angle"], file["user/throttle"]))
         y_pred_steering.append(linear_unbin_steering(q_value[0][0]))
         y_pred_throttle.append(linear_unbin_throttle(q_value[1][0]))
         y_true_steering.append(file["user/angle"])
@@ -55,18 +58,17 @@ def eval_model(model_path, img_path, json_path):
         x_t1 = agent.process_image(obs)
         x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)
         s_t = np.append(x_t1, s_t[:, :, :, :img_frames - 1], axis=3)
-    
+        pbar.update(1)
+    pbar.close()
     MSE_stering = MSE(y_true_steering, y_pred_steering)
     MSE_throttle = MSE(y_true_throttle, y_pred_throttle)
     MAE_stering = MAE(y_true_steering, y_pred_steering)
     MAE_throttle = MAE(y_true_throttle, y_pred_throttle)
-    print(f"Loss MSE steering= {MSE_stering} - throttle= {MSE_throttle}")
-    print(f"Loss MAE steering= {MAE_stering} - throttle= {MAE_throttle}")
-
     return MSE_stering, MSE_throttle, MAE_stering, MAE_throttle
         
 if __name__=="__main__":
     path = "C:/Users/david/Documents/project/gym-donkeycar/examples/reinforcement_learning/data/right_lane_simul_recalibrated/test_set"
+    #path = "C:\\Users\\david\\Documents\\project\\gym-donkeycar\\examples\\reinforcement_learning\\data\\right_lane_road_gen_test_set"
     img_list =  glob.glob(os.path.join(path, "*.jpg"))
     json_list = glob.glob(os.path.join(path,"*.json"))
 
@@ -74,3 +76,6 @@ if __name__=="__main__":
     model_path = "C:\\Users\\david\\Documents\\project\\gym-donkeycar\\examples\\reinforcement_learning\\models"
     name_model = "model_withacc_ep50k_24gen2021.h5"
     MSE_stering, MSE_throttle, MAE_stering, MAE_throttle = eval_model(os.path.join(model_path, name_model), img_list, json_list)
+    print("name model: ", name_model)
+    print(f"Loss MSE steering= {MSE_stering} - throttle= {MSE_throttle}")
+    print(f"Loss MAE steering= {MAE_stering} - throttle= {MAE_throttle}")

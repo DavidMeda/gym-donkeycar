@@ -7,6 +7,7 @@ import numpy as np
 import os
 from typing import Optional
 from autoencoder import load_ae
+import gym.wrappers
 
 
 class AutoEncoderWrapper(gym.Wrapper):

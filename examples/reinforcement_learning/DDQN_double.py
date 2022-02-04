@@ -220,7 +220,7 @@ def run_ddqn(args):
         display = Display(visible=False, size=(1920, 1080)).start()
         path = args.sim
     else:
-        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\donkey_sim.exe"
+        path = "C:\\Users\\david\\Documents\\project\\DonkeySimWin\\v21.07\\donkey_sim.exe"
     EPISODES = args.episode
     img_frames = args.stack_frames
     conf = {
@@ -236,7 +236,7 @@ def run_ddqn(args):
         "bio": "Learning to drive w DDQN RL",
         "guid": str(uuid.uuid4()),
         "headless": args.server,
-        "max_cte": 1.5,
+        "max_cte": 10,
         "log_level": 40
     }
   
@@ -267,7 +267,7 @@ def run_ddqn(args):
 
         if os.path.exists(args.model):
             print("Load the saved model from ", args.model)
-            agent.load_model(args.model)
+            # agent.load_model(args.model)
 
         agent.model.summary()
 
@@ -299,6 +299,7 @@ def run_ddqn(args):
                 
                 # Get action for the current state and go one step in environment
                 action = agent.get_action(s_t)
+                print(action)
                 next_obs, reward, done, info = env.step(action)
                 x_t1 = agent.process_image(next_obs)
                 x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1)  

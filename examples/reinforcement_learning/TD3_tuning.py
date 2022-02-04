@@ -34,30 +34,30 @@ def sample_td3_params(trial: optuna.Trial) -> Dict[str, Any]:
     """
     batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64, 128, 256])
     #n_steps = trial.suggest_categorical("n_steps", [8, 16, 32, 64, 128, 256, 512, 1024, 2048])
-    buffer_size = trial.suggest_categorical("buffer_size", [1000, 2000, 5000])
-    learning_starts = trial.suggest_loguniform("learning_starts",1e2, 1e4)
+    buffer_size = trial.suggest_categorical("buffer_size", [100000, 200000, 500000, 1000000])
+    learning_starts = trial.suggest_loguniform("learning_starts", 1e2, 1e4)
     gamma = trial.suggest_categorical("gamma", [0.9, 0.95, 0.98, 0.99, 0.995, 0.999, 0.9999])
     tau = trial.suggest_categorical("tau", [1e-2, 2e-2, 1e-3, 2e-3, 5e-3, 1e-4])
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-2)
+    learning_rate = trial.suggest_categorical("learning_rate", [1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3])
     gradient_steps = trial.suggest_categorical("gradient_steps", [-1, 10, 50, 100, 256])
-    
+
     result = {
-        #"buffer_size": buffer_size,
+        "buffer_size": buffer_size,
         "batch_size": batch_size,
         "gamma": gamma,
         "learning_rate": learning_rate,
         "learning_starts": learning_starts,
         "tau": tau,
         "gradient_steps": gradient_steps
-        
-        }
+
+    }
     print(result)
     # path_ = "/content/MYgdrive/MyDrive/ColabNotebooks/models/"
     env = gym.make(args.env_name, **conf)
     env = MyMonitor(env, args.log_dir , "TD3_tuning")
     #env = AutoEncoderWrapper(env, os.path.join(args.log_dir, "encoder_1000.pkl"))
     env = NormalizeObservation(env)
-    model = TD3("MlpPolicy", env,buffer_size=10000, **result)
+    model = TD3("MlpPolicy", env, **result)
 
     stopTrainCallback = StopTrainingOnMaxTimestep(args.n_step, 1)
     try:
