@@ -11,7 +11,7 @@ import numpy as np
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from myCallbacks import SaveOnBestTrainingRewardCallback, StopTrainingOnMaxTimestep, CheckpointCallback
-from myWrappers import MyMonitor, NormalizeObservation, AutoEncoderWrapper
+from myWrappers import *
 
 
 
@@ -111,11 +111,13 @@ if __name__ == "__main__":
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model+"_test")
         if args.encoder:
+            # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
             env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+
         else:
             env = NormalizeObservation(env)
         env = Monitor(env, log_dir)
-        env = DummyVecEnv([lambda: env])
+        #env = DummyVecEnv([lambda: env])
 
         model = PPO.load(os.path.join(log_dir, name_model))
         model.set_env(env)
@@ -146,13 +148,14 @@ if __name__ == "__main__":
         # Create the vectorized environment
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model)
-        #env = NormalizeObservation(env)
-        env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+        if args.encoder:
+            # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+            env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+        else:
+            env = NormalizeObservation(env)
+        env = SteeringSmoothWrapper(env)
         env = Monitor(env, log_dir)
-        env = DummyVecEnv([lambda: env])
-        
-        # Multiprocess n_env in 1 process run asynchronus
-        # env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
+
         model = None
         if args.checkpoint:
             model = PPO.load(os.path.join(log_dir, name_model))
@@ -160,10 +163,10 @@ if __name__ == "__main__":
             print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
         else:
             # create cnn policy
-            # best_param = {'batch_size': 8, 'n_steps': 256, 'gamma': 0.995, 'learning_rate': 1.6317237858212062e-05, 'ent_coef': 0.006796716848635915,
+            # best_param_Noencoder = {'batch_size': 8, 'n_steps': 256, 'gamma': 0.995, 'learning_rate': 1.6317237858212062e-05, 'ent_coef': 0.006796716848635915,
             #               'clip_range': 0.3, 'n_epochs': 1, 'gae_lambda': 0.92, 'max_grad_norm': 0.6, 'vf_coef': 0.7925006174080169, 'sde_sample_freq': 16}
             #meglio usare 'n_steps': 256, 'batch_size': 256,
-            best_param = {'batch_size': 512, 'n_steps': 32, 'gamma': 0.99, 'learning_rate': 0.009943591655201678, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
+            best_param = {'n_steps': 256, 'batch_size': 256, 'gamma': 0.99, 'learning_rate': 1e-3, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
                           'n_epochs': 5, 'gae_lambda': 0.99, 'max_grad_norm': 2, 'vf_coef': 0.6215998804092693,  'sde_sample_freq': 8}
 
             model = PPO("MlpPolicy", env, verbose=1, **best_param)

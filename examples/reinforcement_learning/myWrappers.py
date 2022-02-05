@@ -11,23 +11,61 @@ import gym.wrappers
 
 
 class AutoEncoderWrapper(gym.Wrapper):
-    def __init__(self, env, ae_path: Optional[str] = os.environ.get("AAE_PATH")):
+    def __init__(self, env, ae_path):
         super().__init__(env)
+        self.env = env
         assert ae_path is not None
         self.ae = load_ae(ae_path)
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.ae.z_size,), dtype=np.float32)
 
     def reset(self):
-        # Convert to BGR
         return self.ae.encode_from_raw_image(self.env.reset()[:, :, ::-1]).flatten()
 
     def step(self, action):
         obs, reward, done, infos = self.env.step(action)
         return self.ae.encode_from_raw_image(obs[:, :, ::-1]).flatten(), reward, done, infos
 
+class AutoEncoderHistoryWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env, ae_path, num_history=6, max_throttle=1.0, min_throtthle=0.0, left_sterring=-1.0, right_steering=1.0) -> None:
+        super().__init__(env)
+        self.env = env
+        self.ae = load_ae(ae_path)
+        self.num_history = num_history
+        self.history = np.zeros((1,2 * self.num_history), dtype=np.float32)
+        self.action_space = gym.spaces.Box(
+            low=np.array([np.float32(left_sterring), np.float32(min_throtthle)]),
+            high=np.array([np.float32(right_steering), np.float32(max_throttle)]),
+            dtype=np.float32
+            )
+        self.observation_space = gym.spaces.Box(
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            shape=(1,self.ae.z_size + 2 * self.num_history),
+            dtype=np.float32
+            )
+    
+    def reset(self, **kwargs) -> GymObs:
+        obs = self.ae.encode_from_raw_image(self.env.reset()[:, :, ::-1]).flatten()
+        obs = np.reshape(obs, (1, self.ae.z_size))
+        self.history = np.zeros((1,2 * self.num_history), dtype=np.float32)
+        observation = np.concatenate((obs, self.history), axis=-1)
+        return observation
+
+    def step(self, action: Union[np.ndarray, int]) -> GymStepReturn:
+        obs, reward, done, info = self.env.step(action)
+        obs = self.ae.encode_from_raw_image(obs[:, :, ::-1]).flatten()
+        obs = np.reshape(obs, (1, self.ae.z_size))
+        if action[1] == 0.0:
+            action[1] = 0.1
+        self.history = np.roll(self.history, shift=-2, axis=-1)
+        self.history[..., -2:] = action
+        observation = np.concatenate((obs, self.history), axis=-1)
+        return observation, reward, done, info
+
 class MyMonitor(gym.Wrapper):
     def __init__(self, env: gym.Env, log_dir, name_model) -> None:
         super().__init__(env)
+        selfenv = env
         self.file = open(os.path.join(str(log_dir), name_model+"_metric.csv"), "w+")
         self.log = writer(self.file)
         self.log.writerow(['Episode', 'Timestep', 'Avg Steer', 'Min Reward',
@@ -40,12 +78,6 @@ class MyMonitor(gym.Wrapper):
         self.time_step = 0
 
     def reset(self, **kwargs) -> GymObs:
-        """
-        Calls the Gym environment reset. Can only be called if the environment is over, or if allow_early_resets is True
-
-        :param kwargs: Extra keywords saved for the next episode. only if defined by reset_keywords
-        :return: the first observation of the environment
-        """
         self.start_episode = time.time()
         self.episode_len = 0
         self.steers = []
@@ -127,5 +159,32 @@ class NormalizeObservation(gym.Wrapper):
         return observation, reward, done, info
 
 
+class SteeringSmoothWrapper(gym.RewardWrapper):
+
+    def __init__(self, env: gym.Env) -> None:
+        super().__init__(env)
+        self.last_steering = 0.0
+
+    def reset(self, **kwargs):
+        self.last_steering = 0.0
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
+        return observation, self.reward(reward, action), done, info
+
+    def reward(self, reward, action):
+        angle = action[0]
+        import math
+        angle_diff = math.sqrt((angle - self.last_steering) * (angle - self.last_steering))
+        if reward > 0:
+            if angle_diff>0.15:
+                reward = reward*0.5
+                # print(f"CUT reward: {reward} - angle={angle_diff} now {angle} prec {self.last_steering}")
+            else:
+                reward = reward*2
+                # print(f"PRO x2 reward: {reward} - angle={angle_diff} now{angle} prec{self.last_steering}")
+        self.last_steering = angle
+        return reward
 
 

@@ -84,6 +84,9 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.max_cte = conf["max_cte"]
         self.timer = FPSTimer()
 
+        self.lap_time_1 = 0.0
+        self.lap_time = 0.0
+        self.count_lap = 0
         # sensor size - height, width, depth
         self.camera_img_size = conf["cam_resolution"]
         self.image_array = np.zeros(self.camera_img_size)
@@ -317,8 +320,15 @@ class DonkeyUnitySimHandler(IMesgHandler):
         logger.debug("got message :" + msg_type)
         if msg_type in self.fns:
             self.fns[msg_type](message)
-        #else:
-            #logger.warning(f"unknown message type {msg_type}")
+        if msg_type == "collision_with_starting_line":
+            if self.lap_time_1 == 0.0:
+                self.lap_time_1 = time.time()
+            else:
+                self.lap_time = time.time() - self.lap_time_1
+                self.count_lap += 1
+                self.lap_time_1 = 0.0
+        else:
+            logger.warning(f"unknown message type {msg_type}")
 
     # ------- Env interface ---------- #
 
@@ -417,7 +427,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         if done:
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
             # print("reward DONE: ", -1.0* self.speed)
-            return -1.0* self.speed
+            return -2.0* self.speed
 
         if self.hit != "none":
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
@@ -425,7 +435,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
             return -2.0* self.speed
         
         # going fast close to the center of right lane yeilds best reward
-        return (1 - (math.fabs(self.cte) / self.max_cte)) * self.speed
+        return 1+(1 - (math.fabs(self.cte) / self.max_cte)) * self.speed
 
     # ------ Socket interface ----------- #
 
@@ -477,7 +487,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
 
         if "lidar" in data:
             self.lidar = self.process_lidar_packet(data["lidar"])
-
+        
         # don't update hit once session over
         if self.over:
             return
