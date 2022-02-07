@@ -321,12 +321,14 @@ class DonkeyUnitySimHandler(IMesgHandler):
         if msg_type in self.fns:
             self.fns[msg_type](message)
         if msg_type == "collision_with_starting_line":
+            # print("\nMESSAGE ", msg_type)
             if self.lap_time_1 == 0.0:
                 self.lap_time_1 = time.time()
             else:
                 self.lap_time = time.time() - self.lap_time_1
                 self.count_lap += 1
-                self.lap_time_1 = 0.0
+                self.lap_time_1 = time.time()
+                print(f"\nTime lap {self.count_lap}: {self.lap_time}")
         else:
             logger.warning(f"unknown message type {msg_type}")
 
@@ -363,7 +365,9 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lidar = []
         self.n_step_low_speed = 0
         self.n_step = 0
-
+        self.lap_time_1 = 0.0
+        self.lap_time = 0.0
+        self.count_lap = 0
         # car
         self.roll = 0.0
         self.pitch = 0.0
@@ -395,6 +399,8 @@ class DonkeyUnitySimHandler(IMesgHandler):
             "vel": (self.vel_x, self.vel_y, self.vel_z),
             "lidar": (self.lidar),
             "car": (self.roll, self.pitch, self.yaw),
+            "num_lap": self.count_lap,
+            "time_last_lap": self.lap_time,
         }
 
         # Add the second image to the dict
@@ -427,15 +433,20 @@ class DonkeyUnitySimHandler(IMesgHandler):
         if done:
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
             # print("reward DONE: ", -1.0* self.speed)
-            return -2.0* self.speed
+            # return -2.0* self.speed
+            return -10.0 * self.speed
 
         if self.hit != "none":
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
             # print("reward HIT: ", -2.0* self.speed)
-            return -2.0* self.speed
-        
+            # return -2.0* self.speed
+            return -10.0 * self.speed
+
         # going fast close to the center of right lane yeilds best reward
-        return 1+(1 - (math.fabs(self.cte) / self.max_cte)) * self.speed
+        # return 1+(1 - (abs(self.cte) / self.max_cte)) * self.speed
+        return 1+(1 - (math.fabs(self.cte) / self.max_cte)) 
+        
+
 
     # ------ Socket interface ----------- #
 

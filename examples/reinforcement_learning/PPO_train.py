@@ -106,55 +106,80 @@ if __name__ == "__main__":
     }
 
     if args.test:
+        print("test")
+        # conf["max_cte"] = 10
+        # # Make an environment test our trained policy
+        # env = gym.make(args.env_name, **conf)
+        # env = MyMonitor(env, log_dir, name_model+"_test")
+        # if args.encoder:
+        #     # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+        #     env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"),
+        #                                     left_steering=-0.5, right_steering=0.5)
+        # else:
+        #     env = NormalizeObservation(env)
+        # env = Monitor(env, log_dir)
+        # #env = DummyVecEnv([lambda: env])
 
-        # Make an environment test our trained policy
-        env = gym.make(args.env_name, **conf)
-        env = MyMonitor(env, log_dir, name_model+"_test")
-        if args.encoder:
-            # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
-            env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+        # model = PPO.load(os.path.join(log_dir, name_model))
+        # model.set_env(env)
+        # #print("Loaded model\n", "-" * 30, "\n", model.policy,"\n", "-" * 30)
 
-        else:
-            env = NormalizeObservation(env)
-        env = Monitor(env, log_dir)
-        #env = DummyVecEnv([lambda: env])
+        # mean_reward = 0.0
+        # n_episode = 3
+        # unique_time_laps = []
+        # exit_right_lane = 0
+        # for _ in range(n_episode):
+        #     time_step = 0
+        #     obs = env.reset()
+        #     done = False
+        #     rewards = []
+        #     laps_time = []
+        #     num_lap = 0
+            
+        #     while not done:
+        #         time_step += 1
+        #         action, _states = model.predict(obs)
+        #         # print(action)
+        #         obs, reward, done, info = env.step(action)
+        #         if info["time_last_lap"] > 0:
+        #             laps_time.append(info["time_last_lap"])
+        #         num_lap = info["num_lap"]
+        #         rewards.append(reward)
+        #         if abs(info["cte"]) > 1.5:
+        #             exit_right_lane += 1
+        #             print("EXIT RIGHT LANE, tot", exit_right_lane)
+                    
+        #         # if time_step >= args.n_step:
+        #         #     print(
+        #         #         f" Stopping EVALUATION with a total of {time_step} steps because the PPO model reached max_timestep={args.n_step}")
+        #         #     done = True
+        #         if num_lap >= 3:
+        #             print(
+        #                 f" Stopping EVALUATION with a total of {time_step} steps because the PPO model reached laps={num_lap}")
+        #             unique_time_laps.append(np.unique(laps_time))
+        #             print("avg time laps: ", round(np.mean(unique_time_laps), 6))
+        #             print("exit right lane: ", exit_right_lane)
 
-        model = PPO.load(os.path.join(log_dir, name_model))
-        model.set_env(env)
-        #print("Loaded model\n", "-" * 30, "\n", model.policy,"\n", "-" * 30)
-
-        mean_reward = 0.0
-        for _ in range(5):
-            time_step = 0
-            obs = env.reset()
-            done = False
-            rewards = []
-            while not done:
-                time_step += 1
-                action, _states = model.predict(obs)
-                print(action)
-                obs, reward, done, info = env.step(action)
-                rewards.append(reward)
-                if time_step >= args.n_step:
-                    print(
-                        f" Stopping EVALUATION with a total of {time_step} steps because the PPO model reached max_timestep={args.n_step}")
-                    done = True
-            mean_reward += np.sum(rewards)
-        mean_reward = mean_reward / 5.0
-        print("Mean sum reward ", mean_reward)
-        print("DONE TEST")
+        #             done = True
+        #     mean_reward += np.sum(rewards)
+        # mean_reward = mean_reward / n_episode
+        # print("Mean sum reward ", mean_reward)
+        # print("Mean time laps: ", round(np.mean(unique_time_laps), 6))
+        # print("DONE TEST")
 
     else:
         # Create the vectorized environment
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model)
+        env = Monitor(env, log_dir)
         if args.encoder:
             # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
-            env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+            env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"),
+                                            left_sterring=-0.5, right_steering=0.5)
         else:
             env = NormalizeObservation(env)
         env = SteeringSmoothWrapper(env)
-        env = Monitor(env, log_dir)
+        
 
         model = None
         if args.checkpoint:
@@ -169,7 +194,7 @@ if __name__ == "__main__":
             best_param = {'n_steps': 256, 'batch_size': 256, 'gamma': 0.99, 'learning_rate': 1e-3, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
                           'n_epochs': 5, 'gae_lambda': 0.99, 'max_grad_norm': 2, 'vf_coef': 0.6215998804092693,  'sde_sample_freq': 8}
 
-            model = PPO("MlpPolicy", env, verbose=1, **best_param)
+            model = PPO("MlpPolicy", env, verbose=0, **best_param)
         
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
         save_checkpoint = CheckpointCallback(save_freq=n_step//2, save_path=log_dir,
