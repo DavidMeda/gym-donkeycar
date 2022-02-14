@@ -100,6 +100,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.y = 0.0
         self.z = 0.0
         self.speed = 0.0
+        self.last_throttle = 0.0
         self.missed_checkpoint = False
         self.dq = False
         self.over = False
@@ -328,9 +329,9 @@ class DonkeyUnitySimHandler(IMesgHandler):
                 self.lap_time = time.time() - self.lap_time_1
                 self.count_lap += 1
                 self.lap_time_1 = time.time()
-                print(f"\nTime lap {self.count_lap}: {self.lap_time}")
-        else:
-            logger.warning(f"unknown message type {msg_type}")
+                print(f"Time lap {self.count_lap}: {self.lap_time}")
+        # else:
+            # logger.warning(f"unknown message type {msg_type}")
 
     # ------- Env interface ---------- #
 
@@ -368,6 +369,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lap_time_1 = 0.0
         self.lap_time = 0.0
         self.count_lap = 0
+        self.last_throttle = 0.0
         # car
         self.roll = 0.0
         self.pitch = 0.0
@@ -378,6 +380,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
 
     def take_action(self, action):
         self.n_step += 1
+        self.last_throttle = action[1]
         self.send_control(action[0], action[1])
 
     def observe(self):
@@ -397,7 +400,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
             "gyro": (self.gyro_x, self.gyro_y, self.gyro_z),
             "accel": (self.accel_x, self.accel_y, self.accel_z),
             "vel": (self.vel_x, self.vel_y, self.vel_z),
-            "lidar": (self.lidar),
             "car": (self.roll, self.pitch, self.yaw),
             "num_lap": self.count_lap,
             "time_last_lap": self.lap_time,
@@ -429,22 +431,26 @@ class DonkeyUnitySimHandler(IMesgHandler):
         #     print("cte: ", self.cte, "\tspeed: ", self.speed)
         #     print("reward BOUND: ", (1 - (math.fabs(self.cte) / self.max_cte)) * self.speed)
             #return -1.0
+        if self.n_step_low_speed > 30:
+            # print("reward VEL: ", -20.0 * self.last_throttle)
+            return -10.0 
 
         if done:
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
-            # print("reward DONE: ", -1.0* self.speed)
+            # print("reward DONE: ", -20.0 * self.last_throttle)
             # return -2.0* self.speed
-            return -10.0 * self.speed
+            return -5.0*self.speed 
 
         if self.hit != "none":
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
-            # print("reward HIT: ", -2.0* self.speed)
+            # print("reward HIT: ", -20.0 * self.last_throttle)
             # return -2.0* self.speed
-            return -10.0 * self.speed
+            return -5.0 * self.speed
 
         # going fast close to the center of right lane yeilds best reward
         # return 1+(1 - (abs(self.cte) / self.max_cte)) * self.speed
-        return 1+(1 - (math.fabs(self.cte) / self.max_cte)) 
+        # print(f"Reward #{(1 - (abs(self.cte) / self.max_cte))} ##{2.0 * self.last_throttle}")
+        return 1 + (1 - (abs(self.cte) / self.max_cte)) *self.speed
         
 
 
@@ -557,7 +563,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
             self.over = True
         if abs(self.speed) < self.min_speed and self.n_step > 200:
             self.n_step_low_speed += 1
-            if self.n_step_low_speed > 60:
+            if self.n_step_low_speed > 30:
                 self.over = True
         else: 
             self.n_step_low_speed = 0
