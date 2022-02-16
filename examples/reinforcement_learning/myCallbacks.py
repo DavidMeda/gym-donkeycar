@@ -27,7 +27,7 @@ class CheckpointCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.n_calls % self.save_freq == 0:
-            path = os.path.join(self.save_path, self.name_prefix)
+            path = os.path.join(self.save_path, self.name_prefix + "_checkpoint_" + str(self.num_timesteps))
             self.model.save(path)
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {path} at timestep {self.num_timesteps}")

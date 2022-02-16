@@ -102,15 +102,14 @@ if __name__ == "__main__":
         model.set_env(env)
         print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
     else:
-        best_param = {"policy": 'MlpPolicy',
-                      "learning_rate":  7.3e-4,
+        best_param = {"learning_rate":  7.3e-4,
                       "buffer_size": 300000,
                       "batch_size": 256,
                       "ent_coef": 'auto',
                       "gamma": 0.99,
                       "tau": 0.02,
                       # train_freq: 64
-                      "train_freq": [1, "episode"],
+                      "train_freq": (1, "episode"),
                     #   gradient_steps: -1
                       "gradient_steps": 64,
                       "learning_starts": 500,
@@ -118,7 +117,11 @@ if __name__ == "__main__":
                       "use_sde": True,
                       "sde_sample_freq": 64,
                       "policy_kwargs": dict(log_std_init=-2, net_arch=[64, 64])}
-        model = SAC(env, verbose=0, **best_param)
+        # best_param = {'batch_size': 128, 'gamma': 0.95, 'buffer_size': 200000, 'learning_rate': 1e-05, 'learning_starts': 100, 'tau': 0.002,
+        #     'gradient_steps': 256,  'use_sde': True,  'sde_sample_freq': 64,"policy_kwargs": dict(log_std_init=-4, net_arch=[64, 64],activation_fn= nn.Tanh)}
+
+
+        model = SAC("MlpPolicy",env, verbose=0, **best_param)
 
     auto_save_callback = SaveOnBestTrainingRewardCallback(
         check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
