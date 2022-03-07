@@ -156,7 +156,7 @@ class DonkeyViewWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         # logger.info(observation.shape)
         vae_dim = self.ae.z_size
-        self.ae_observation = observation.copy()[0, :vae_dim]
+        self.ae_observation = observation.copy()
         encoded = self.ae_observation.reshape(1, self.ae.z_size)
         # encoded = self.ae_observation[:, :vae_dim]
         self.reconstructed_image = self.ae.decode(encoded)
@@ -283,10 +283,13 @@ class MyMonitor(gym.Wrapper):
 
         if done:
             unique_time_laps = []
+            avg_time_lap = 0.0
+            best_time_lap = 0.0
             if self.num_lap > 0:
                 unique_time_laps.append(np.unique(self.laps_time))
-            else:
-                unique_time_laps.append(-1)
+                avg_time_lap = np.mean(unique_time_laps)
+                best_time_lap = np.min(unique_time_laps)
+
             print("FINISH EPISODE:", self.episode, f"(timestep: {self.time_step})" , " timestep ep: ", round(self.episode_len, 4), " sum reward:",
                   round(np.sum(self.rewards), 4), " avg reward:", round(np.mean(self.rewards), 4), " tot dist:", round(self.distance, 4), 
                   "avg throt:", round(np.mean(self.throttles), 4), "num laps: ", info["num_lap"])
@@ -299,8 +302,8 @@ class MyMonitor(gym.Wrapper):
                                round(np.max(self.ctes), 4), round(self.distance, 4), round(
                                    np.mean(self.throttles), 4), round(np.max(self.throttles), 4),
                                round(np.min(self.throttles), 4), round(np.mean(self.ctes_absolute), 4), 
-                               round(np.min(self.ctes_absolute), 4), round(np.max(self.ctes_absolute), 4)],
-                               self.hit, round(np.mean(unique_time_laps), 6),round(np.min(unique_time_laps), 6),)
+                               round(np.min(self.ctes_absolute), 4), round(np.max(self.ctes_absolute), 4),
+                               self.hit, round(avg_time_lap, 6), round(best_time_lap, 6) ])
         return observation, reward, done, info
         
     def close(self) -> None:

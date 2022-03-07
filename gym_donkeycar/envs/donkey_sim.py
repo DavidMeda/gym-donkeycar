@@ -62,6 +62,7 @@ class DonkeyUnitySimContoller:
 
     def quit(self):
         self.client.stop()
+        # self.handler.get_exit()
 
     def exit_scene(self):
         self.handler.send_exit_scene()
@@ -132,6 +133,10 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.n_step_low_speed = 0
         self.min_speed = 1.0
         self.n_step = 0
+        self.exit = 0.0
+        self.distance_time = time.time()
+        self.velocities = []
+        self.distance = 0.0
 
 
         # car in Unity lefthand coordinate system: roll is Z, pitch is X and yaw is Y
@@ -143,6 +148,11 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lidar_deg_per_sweep_inc = 1
         self.lidar_num_sweep_levels = 1
         self.lidar_deg_ang_delta = 1
+
+    def get_exit(self):
+        print("Percentuale exit: ",round((self.exit/self.n_step)*100,4), "%  N° exit: ", self.exit, "time tot: ", self.n_step)
+        print("velocià media: ", round(np.mean(self.velocities), 4))
+        print("distanza Tot: ", round(self.distance, 4))
 
     def on_connect(self, client):
         logger.debug("socket connected")
@@ -329,7 +339,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
                 self.lap_time = time.time() - self.lap_time_1
                 self.count_lap += 1
                 self.lap_time_1 = time.time()
-                print(f"Time lap {self.count_lap}: {self.lap_time}")
+                print(f"Time lap {self.count_lap}: {round(self.lap_time, 4)}")
         # else:
             # logger.warning(f"unknown message type {msg_type}")
 
@@ -370,6 +380,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lap_time = 0.0
         self.count_lap = 0
         self.last_throttle = 0.0
+        self.exit = 0.0
         # car
         self.roll = 0.0
         self.pitch = 0.0
@@ -409,6 +420,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         if self.image_array_b is not None:
             info["image_b"] = self.image_array_b
 
+        
         # self.timer.on_frame()
 
         return observation, reward, done, info
@@ -499,8 +511,21 @@ class DonkeyUnitySimHandler(IMesgHandler):
         # Cross track error not always present.
         # Will be missing if path is not setup in the given scene.
         # It should be setup in the 4 scenes available now.
-        if "cte" in data:
-            self.cte = data["cte"]
+        # if "cte" in data:
+        #     self.cte = data["cte"]
+        #     if abs(self.cte) > 1.5:
+        #         self.exit += 1
+        #         # print("exit ", self.exit)
+        # self.distance += self.speed * (time.time() - self.distance_time)
+        # self.distance_time = time.time()
+        # self.velocities.append(self.speed)
+
+        # if self.n_step%1000==0 and self.n_step>0:
+        #     print("TIMESTEP: ", self.n_step)
+        #     if self.n_step == 5000:
+        #         print("\nSTOP timestep: ", self.n_step, "\n")
+        #         self.over = True
+
 
         if "lidar" in data:
             self.lidar = self.process_lidar_packet(data["lidar"])
