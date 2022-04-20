@@ -101,3 +101,5 @@ class StopTrainingOnMaxTimestep(BaseCallback):
               f"{self.locals.get('tb_log_name')} model reached max_timestep={self._total_max_timestep}, "
           )
     return continue_training
+  
+

@@ -62,7 +62,6 @@ class DonkeyUnitySimContoller:
 
     def quit(self):
         self.client.stop()
-        # self.handler.get_exit()
 
     def exit_scene(self):
         self.handler.send_exit_scene()
@@ -83,6 +82,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.SceneToLoad = conf["level"]
         self.loaded = False
         self.max_cte = conf["max_cte"]
+        #self.min_cte = conf["min_cte"]
         self.timer = FPSTimer()
 
         self.lap_time_1 = 0.0
@@ -133,11 +133,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.n_step_low_speed = 0
         self.min_speed = 1.0
         self.n_step = 0
-        self.exit = 0.0
-        self.distance_time = time.time()
-        self.velocities = []
-        self.distance = 0.0
-
 
         # car in Unity lefthand coordinate system: roll is Z, pitch is X and yaw is Y
         self.roll = 0.0
@@ -148,11 +143,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lidar_deg_per_sweep_inc = 1
         self.lidar_num_sweep_levels = 1
         self.lidar_deg_ang_delta = 1
-
-    def get_exit(self):
-        print("Percentuale exit: ",round((self.exit/self.n_step)*100,4), "%  N° exit: ", self.exit, "time tot: ", self.n_step)
-        print("velocià media: ", round(np.mean(self.velocities), 4))
-        print("distanza Tot: ", round(self.distance, 4))
 
     def on_connect(self, client):
         logger.debug("socket connected")
@@ -339,7 +329,7 @@ class DonkeyUnitySimHandler(IMesgHandler):
                 self.lap_time = time.time() - self.lap_time_1
                 self.count_lap += 1
                 self.lap_time_1 = time.time()
-                print(f"Time lap {self.count_lap}: {round(self.lap_time, 4)}")
+                print(f"Time lap {self.count_lap}: {self.lap_time}")
         # else:
             # logger.warning(f"unknown message type {msg_type}")
 
@@ -380,7 +370,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
         self.lap_time = 0.0
         self.count_lap = 0
         self.last_throttle = 0.0
-        self.exit = 0.0
         # car
         self.roll = 0.0
         self.pitch = 0.0
@@ -420,7 +409,6 @@ class DonkeyUnitySimHandler(IMesgHandler):
         if self.image_array_b is not None:
             info["image_b"] = self.image_array_b
 
-        
         # self.timer.on_frame()
 
         return observation, reward, done, info
@@ -438,33 +426,31 @@ class DonkeyUnitySimHandler(IMesgHandler):
         logger.debug("custom reward fn set.")
 
     def calc_reward(self, done):
-        
+
         # if math.fabs(self.cte) > 1.0:
         #     print("cte: ", self.cte, "\tspeed: ", self.speed)
         #     print("reward BOUND: ", (1 - (math.fabs(self.cte) / self.max_cte)) * self.speed)
-            #return -1.0
+        #return -1.0
         if self.n_step_low_speed > 30:
-            # print("reward VEL: ", -20.0 * self.last_throttle)
-            return -10.0 
+            # print("reward VEL: ", -10.0 )
+            return -10.0
 
         if done:
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
-            # print("reward DONE: ", -20.0 * self.last_throttle)
+            # print("reward DONE: ", -5.0 * self.speed)
             # return -2.0* self.speed
-            return -5.0*self.speed 
+            return -5.0 * self.speed
 
         if self.hit != "none":
             # print("cte: ", self.cte, "\tspeed: ", self.speed)
-            # print("reward HIT: ", -20.0 * self.last_throttle)
+            # print("reward HIT: ", -5.0 * self.speed)
             # return -2.0* self.speed
             return -5.0 * self.speed
 
         # going fast close to the center of right lane yeilds best reward
         # return 1+(1 - (abs(self.cte) / self.max_cte)) * self.speed
         # print(f"Reward #{(1 - (abs(self.cte) / self.max_cte))} ##{2.0 * self.last_throttle}")
-        return 1 + (1 - (abs(self.cte) / self.max_cte)) *self.speed
-        
-
+        return 1 + (1 - (abs(self.cte) / (self.max_cte))) * self.speed
 
     # ------ Socket interface ----------- #
 
@@ -511,25 +497,12 @@ class DonkeyUnitySimHandler(IMesgHandler):
         # Cross track error not always present.
         # Will be missing if path is not setup in the given scene.
         # It should be setup in the 4 scenes available now.
-        # if "cte" in data:
-        #     self.cte = data["cte"]
-        #     if abs(self.cte) > 1.5:
-        #         self.exit += 1
-        #         # print("exit ", self.exit)
-        # self.distance += self.speed * (time.time() - self.distance_time)
-        # self.distance_time = time.time()
-        # self.velocities.append(self.speed)
-
-        # if self.n_step%1000==0 and self.n_step>0:
-        #     print("TIMESTEP: ", self.n_step)
-        #     if self.n_step == 5000:
-        #         print("\nSTOP timestep: ", self.n_step, "\n")
-        #         self.over = True
-
+        if "cte" in data:
+            self.cte = data["cte"]
 
         if "lidar" in data:
             self.lidar = self.process_lidar_packet(data["lidar"])
-        
+
         # don't update hit once session over
         if self.over:
             return
@@ -574,23 +547,24 @@ class DonkeyUnitySimHandler(IMesgHandler):
         # the path just slightly. We ignore those.
         if math.fabs(self.cte) > 2 * self.max_cte:
             pass
-        elif math.fabs(self.cte) > self.max_cte:
-            logger.debug(f"game over: cte {self.cte}")
-            self.over = True
+        # elif math.fabs(self.cte) > self.max_cte:
+        #     # print(f"game over: cte {self.cte}")
+        #     self.over = True
         elif self.hit != "none":
-            logger.debug(f"game over: hit {self.hit}")
+            # print(f"game over: hit {self.hit}")
             self.over = True
         elif self.missed_checkpoint:
-            logger.debug("missed checkpoint")
+            # print("missed checkpoint")
             self.over = True
         elif self.dq:
-            logger.debug("disqualified")
+            # print("disqualified")
             self.over = True
         if abs(self.speed) < self.min_speed and self.n_step > 200:
             self.n_step_low_speed += 1
             if self.n_step_low_speed > 30:
+                # print("Velocity game over")
                 self.over = True
-        else: 
+        else:
             self.n_step_low_speed = 0
 
     def on_scene_selection_ready(self, data):

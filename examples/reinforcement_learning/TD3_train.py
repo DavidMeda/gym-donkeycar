@@ -161,6 +161,16 @@ if __name__ == "__main__":
             best_param = {'batch_size': 32, 'buffer_size': 500000, 'learning_starts': 8411.241114547869,
                           'gamma': 0.995, 'tau': 0.01, 'learning_rate': 5e-4, 'gradient_steps': 100}
 
+            # best param no encoder
+            {'batch_size': 256, 'buffer_size': 5000, 'learning_starts': 431.4810885151668,
+                'gamma': 0.9999, 'tau': 0.001, 'learning_rate': 0.0005, 'gradient_steps': 100}
+
+            # best param encoder
+            {'batch_size': 64, 'buffer_size': 200000, 'learning_starts': 178.41975530518013,
+                'gamma': 0.9, 'tau': 0.001, 'learning_rate': 0.0001, 'gradient_steps': 100}
+
+
+
             model = TD3("MlpPolicy", env, verbose=1,  **best_param)
 
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)

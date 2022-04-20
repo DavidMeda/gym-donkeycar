@@ -54,6 +54,7 @@ def sample_DDPG_params(trial: optuna.Trial) -> Dict[str, Any]:
     print(result)
     # path_ = "/content/MYgdrive/MyDrive/ColabNotebooks/models/"
     env = gym.make(args.env_name, **conf)
+    env = Monitor(env, log_dir)
     env = MyMonitor(env, args.log_dir , "DDPG_tuning")
     #env = AutoEncoderWrapper(env, os.path.join(args.log_dir, "encoder_1000.pkl"))
     env = NormalizeObservation(env)

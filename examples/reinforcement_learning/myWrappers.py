@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import pygame
+
 import gym
 import time
 from csv import writer
@@ -105,65 +105,66 @@ class AutoEncoderHistoryWrapper(gym.Wrapper):
 
 from threading import Event, Thread
 
-class DonkeyViewWrapper(gym.ObservationWrapper):
-    def __init__(self, env, path_ae):
-        gym.ObservationWrapper.__init__(self, env)
-        self.env = env
-        self.ae = load_ae(path_ae)
-        self.display_width = 640
-        self.display_height = 320
-        self.game_display = None
-        self.raw_observation = None
-        self.decoded_surface = None
-        self.BLACK = (0, 0, 0)
-        self.WHITE = (255, 255, 255)
-        self.YELLOW = (255, 255, 0)
-        self.BLUE = (0, 0, 255)
-        self.reconstructed_image = None
-        self.ae_observation = None
-        self.game_over = False
-        self.start_process()
+# class DonkeyViewWrapper(gym.ObservationWrapper):
+#     import pygame
+#     def __init__(self, env, path_ae):
+#         gym.ObservationWrapper.__init__(self, env)
+#         self.env = env
+#         self.ae = load_ae(path_ae)
+#         self.display_width = 640
+#         self.display_height = 320
+#         self.game_display = None
+#         self.raw_observation = None
+#         self.decoded_surface = None
+#         self.BLACK = (0, 0, 0)
+#         self.WHITE = (255, 255, 255)
+#         self.YELLOW = (255, 255, 0)
+#         self.BLUE = (0, 0, 255)
+#         self.reconstructed_image = None
+#         self.ae_observation = None
+#         self.game_over = False
+#         self.start_process()
 
-    def main_loop(self):
-        pygame.init()
-        self.game_display = pygame.display.set_mode((self.display_width, self.display_height))
-        pygame.display.set_caption('Agent View')
-        clock = pygame.time.Clock()
+#     def main_loop(self):
+#         pygame.init()
+#         self.game_display = pygame.display.set_mode((self.display_width, self.display_height))
+#         pygame.display.set_caption('Agent View')
+#         clock = pygame.time.Clock()
 
-        self.game_display.fill(self.WHITE)
-        while not self.game_over:
-            self.upateScreen()
-            clock.tick(30)
+#         self.game_display.fill(self.WHITE)
+#         while not self.game_over:
+#             self.upateScreen()
+#             clock.tick(30)
 
-    def start_process(self):
-        """Start main loop process."""
-        self.process = Thread(target=self.main_loop)
-        self.process.daemon = True
-        self.process.start()
+#     def start_process(self):
+#         """Start main loop process."""
+#         self.process = Thread(target=self.main_loop)
+#         self.process.daemon = True
+#         self.process.start()
 
-    def pilImageToSurface(self, pilImage):
-        pilImage = pilImage.resize((640, 320))
-        return pygame.image.fromstring(
-            pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
+#     def pilImageToSurface(self, pilImage):
+#         pilImage = pilImage.resize((640, 320))
+#         return pygame.image.fromstring(
+#             pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
-    def upateScreen(self):
-        self.game_display.fill((0, 0, 0))
-        if self.reconstructed_image is not None:
-            pygame_surface = self.pilImageToSurface(self.reconstructed_image)
-            self.game_display.blit(pygame_surface, pygame_surface.get_rect(center=(320, 160)))
-            pygame.display.update()
+#     def upateScreen(self):
+#         self.game_display.fill((0, 0, 0))
+#         if self.reconstructed_image is not None:
+#             pygame_surface = self.pilImageToSurface(self.reconstructed_image)
+#             self.game_display.blit(pygame_surface, pygame_surface.get_rect(center=(320, 160)))
+#             pygame.display.update()
 
-    def observation(self, observation):
-        # logger.info(observation.shape)
-        vae_dim = self.ae.z_size
-        self.ae_observation = observation.copy()
-        encoded = self.ae_observation.reshape(1, self.ae.z_size)
-        # encoded = self.ae_observation[:, :vae_dim]
-        self.reconstructed_image = self.ae.decode(encoded)
-        self.reconstructed_image = np.reshape(self.reconstructed_image, (80,160,3))
-        plt.imshow(self.reconstructed_image)
-        plt.show()
-        return observation
+#     def observation(self, observation):
+#         # logger.info(observation.shape)
+#         vae_dim = self.ae.z_size
+#         self.ae_observation = observation.copy()
+#         encoded = self.ae_observation.reshape(1, self.ae.z_size)
+#         # encoded = self.ae_observation[:, :vae_dim]
+#         self.reconstructed_image = self.ae.decode(encoded)
+#         self.reconstructed_image = np.reshape(self.reconstructed_image, (80,160,3))
+#         plt.imshow(self.reconstructed_image)
+#         plt.show()
+#         return observation
 
 
 class SteeringSmoothWrapper(gym.RewardWrapper):
@@ -197,12 +198,10 @@ class SteeringSmoothWrapper(gym.RewardWrapper):
                 contrib_throttle = self.throttle*4
             elif self.throttle < 0.1: 
                 contrib_throttle = -1
-
             if angle_diff > 0.15:
                 reward_return =  reward + contrib_throttle + self.speed - (3*angle_diff)
                 # print(f"PEN reward: {reward_return} - rew {reward} cont_thr {contrib_throttle} th{self.throttle}")
                 return reward_return
-            
             reward_return = (reward + contrib_throttle + self.speed) 
             # print(f"PRO reward: {reward_return} - rew {reward} cont_thr {contrib_throttle} th{self.throttle} speed {self.speed}")
             return reward_return
@@ -226,15 +225,15 @@ class ActionClipWrapper(gym.ActionWrapper):
 class MyMonitor(gym.Wrapper):
     def __init__(self, env: gym.Env, log_dir, name_model) -> None:
         super().__init__(env)
-        selfenv = env
+        self.env = env
         self.file = open(os.path.join(str(log_dir), name_model+"_metric.csv"), "w+")
         self.log = writer(self.file)
         self.log.writerow(['Episode', 'Timestep', 'Avg Steer', 'Min Reward',
-                      'Avg Reward', 'Max Reward', 'Reward Sum', 'Episode Length (timestep)',
-                     'Episode Time','Avg Speed', 'Max Speed', 'Min CTE', 'Avg CTE', 'Max CTE', 'Distance',
-                      "Average Throttle", "Max Throttle", "Min Throttle",
-                           "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE", "Hit", "Num lap", "Avg time lap", "Best time lap", ])
-
+                        'Avg Reward', 'Max Reward', 'Reward Sum', 'Episode Length (timestep)',
+                        'Episode Time','Avg Speed', 'Max Speed', 'Min CTE', 'Avg CTE', 'Max CTE', 
+                        'Distance',"Average Throttle", "Max Throttle", "Min Throttle",
+                        "Average Absolute CTE", "Min Absolute CTE", "Max Absolute CTE", "Hit", 
+                        "Num lap","Avg time lap", "Best time lap", ])
         self.episode = 0
         self.time_step = 0
 
@@ -257,12 +256,6 @@ class MyMonitor(gym.Wrapper):
         return self.env.reset(**kwargs)
 
     def step(self, action: Union[np.ndarray, int]) -> GymStepReturn:
-        """
-        Step the environment with the given action
-
-        :param action: the action
-        :return: observation, reward, done, information
-        """
         observation, reward, done, info = self.env.step(action)
         self.time_step += 1
         self.steers.append(action[0])
@@ -324,16 +317,15 @@ class NormalizeObservation(gym.Wrapper):
         super().__init__(env)
         self.env = env
 
-        
-    def reset(self, **kwargs) -> GymObs:
-        obs = self.env.reset(**kwargs)
+    def reset(self) -> GymObs:
+        obs = self.env.reset()
         obs = obs.astype(np.float16)
         obs /= 255.0
         return obs
 
-    def step(self, action: Union[np.ndarray, int]) -> GymStepReturn:
+    def step(self, action) -> GymStepReturn:
         observation, reward, done, info = self.env.step(action)
-        observation = observation.astype(np.float16)
+        observation = observation.astype(np.float32)
         observation /= 255.0
         return observation, reward, done, info
 

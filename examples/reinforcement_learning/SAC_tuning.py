@@ -52,8 +52,6 @@ def sample_sac_params(trial: optuna.Trial) -> Dict[str, Any]:
     use_sde_at_warmup = False
     # Uncomment for gSDE (continuous action)
     # Orthogonal initialization
-    ortho_init = False
-    ortho_init = trial.suggest_categorical('ortho_init', [False, True])
     activation_fn = trial.suggest_categorical('activation_fn', ['tanh', 'relu', 'elu', 'leaky_relu'])
     # activation_fn = trial.suggest_categorical("activation_fn", ["tanh", "relu"])
 
@@ -69,8 +67,8 @@ def sample_sac_params(trial: optuna.Trial) -> Dict[str, Any]:
     # Independent networks usually work best
     # when not working with images
     net_arch = {
-        "small": [dict(pi=[64, 64], vf=[64, 64])],
-        "medium": [dict(pi=[256, 256], vf=[256, 256])],
+        "small": [64, 64],
+        "medium": [256, 256],
     }[net_arch]
 
     activation_fn = {"sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "relu": nn.ReLU,
@@ -85,7 +83,7 @@ def sample_sac_params(trial: optuna.Trial) -> Dict[str, Any]:
         "tau": tau,
         "learning_starts" : learning_starts,
         "gradient_steps": gradient_steps,
-        "train_freq": [1, "episode"],
+        "train_freq": (1, "episode"),
         "learning_rate": learning_rate,
         "use_sde_at_warmup": use_sde_at_warmup,
         "use_sde": use_sde,
@@ -94,7 +92,6 @@ def sample_sac_params(trial: optuna.Trial) -> Dict[str, Any]:
             log_std_init=log_std_init,
             net_arch=net_arch,
             activation_fn=activation_fn,
-            ortho_init=ortho_init,
             )
         }
 

@@ -102,6 +102,14 @@ if __name__ == "__main__":
         model.set_env(env)
         print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
     else:
+        net_arch = {
+            "small": [64, 64],
+            "medium": [256, 256],
+        }
+
+        activation_fn = {"sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "relu": nn.ReLU,
+                         "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}
+
         best_param = {"learning_rate":  7.3e-4,
                       "buffer_size": 300000,
                       "batch_size": 256,
@@ -117,8 +125,14 @@ if __name__ == "__main__":
                       "use_sde": True,
                       "sde_sample_freq": 64,
                       "policy_kwargs": dict(log_std_init=-2, net_arch=[64, 64])}
-        # best_param = {'batch_size': 128, 'gamma': 0.95, 'buffer_size': 200000, 'learning_rate': 1e-05, 'learning_starts': 100, 'tau': 0.002,
-        #     'gradient_steps': 256,  'use_sde': True,  'sde_sample_freq': 64,"policy_kwargs": dict(log_std_init=-4, net_arch=[64, 64],activation_fn= nn.Tanh)}
+        #best_param no encoder
+        {'batch_size': 32, 'gamma': 0.9999, 'buffer_size': 5000, 'learning_rate': 0.0001, 'learning_starts': 100, 'tau': 0.0001,
+            'gradient_steps': 50, "policy_kwargs": dict(log_std_init=-3, net_arch=net_arch["small"], activation_fn= activation_fn['elu']), 
+            'use_sde': True, 'sde_sample_freq': 8}
+        #best_param encoder
+        {'batch_size': 32, 'gamma': 0.995, 'buffer_size': 300000, 'learning_rate': 5e-05, 'learning_starts': 200, 'tau': 0.02,
+            'gradient_steps': 100, "policy_kwargs": dict(log_std_init=-2, net_arch=net_arch["small"]), 
+            "use_sde_at_warmup": True, "use_sde": True,"sde_sample_freq": 64, }
 
 
         model = SAC("MlpPolicy",env, verbose=0, **best_param)

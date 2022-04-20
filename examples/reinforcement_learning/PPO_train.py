@@ -1,4 +1,5 @@
 import argparse
+from pprint import pprint
 import uuid
 import gym_donkeycar 
 import os
@@ -7,6 +8,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from pyvirtualdisplay import Display
 import torch
+from torch import nn
 import numpy as np
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
@@ -172,10 +174,11 @@ if __name__ == "__main__":
         env = gym.make(args.env_name, **conf)
         env = MyMonitor(env, log_dir, name_model)
         env = Monitor(env, log_dir)
+        # env = ActionClipWrapper(env)
         if args.encoder:
-            # env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
-            env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"),
-                                            left_sterring=-0.5, right_steering=0.5)
+            env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+            # env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"),
+            #                                 left_steering=-0.5, right_steering=0.5)
         else:
             env = NormalizeObservation(env)
         env = SteeringSmoothWrapper(env)
@@ -191,17 +194,39 @@ if __name__ == "__main__":
             # best_param_Noencoder = {'batch_size': 8, 'n_steps': 256, 'gamma': 0.995, 'learning_rate': 1.6317237858212062e-05, 'ent_coef': 0.006796716848635915,
             #               'clip_range': 0.3, 'n_epochs': 1, 'gae_lambda': 0.92, 'max_grad_norm': 0.6, 'vf_coef': 0.7925006174080169, 'sde_sample_freq': 16}
             #meglio usare 'n_steps': 256, 'batch_size': 256,
-            best_param = {'n_steps': 256, 'batch_size': 256, 'gamma': 0.99, 'learning_rate': 1e-3, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
-                          'n_epochs': 5, 'gae_lambda': 0.99, 'max_grad_norm': 2, 'vf_coef': 0.6215998804092693,  'sde_sample_freq': 8}
+            net_arch = {
+                "small": [dict(pi=[64, 64], vf=[64, 64])],
+                "medium": [dict(pi=[256, 256], vf=[256, 256])],
+            }
 
-            model = PPO("MlpPolicy", env, verbose=0, **best_param)
+            activation_fn = {"sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "relu": nn.ReLU,
+                            "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}
+            best_param = {'n_steps': 256, 'batch_size': 256, 'gamma': 0.99, 'learning_rate': 1e-3, 'ent_coef': 8.909295283666419e-06, 'clip_range': 0.2,
+                          'n_epochs': 5, 'gae_lambda': 0.99, 'max_grad_norm': 2, 'vf_coef': 0.6215998804092693, 'sde_sample_freq': 8, 
+                          "policy_kwargs": dict(net_arch=net_arch['small'],activation_fn=activation_fn['relu'],)}
+            # best param encoder, history and new reward
+            # 'batch_size': 8, 'n_steps': 8,
+            # best_param ={'batch_size': 8, 'n_steps': 8, 'gamma': 0.99, 'learning_rate': 0.006367922460058498, 'ent_coef': 2.4236372121262133e-06, 'clip_range': 0.2, 'n_epochs': 20,
+            #     'gae_lambda': 0.8, 'max_grad_norm': 0.6, 'vf_coef': 0.6738008255099153, 'use_sde': True, 'net_arch': 'medium', 'sde_sample_freq': 8, 'activation_fn': 'relu'}
+            
+            # best param NO encoder
+            {'n_steps': 16, 'batch_size': 8, 'gamma': 0.99, 'learning_rate': 1e-05, 'ent_coef': 0.00012635143148991874, 'clip_range': 0.1, 'n_epochs': 10, 'gae_lambda': 0.92, 
+            'max_grad_norm': 0.7, 'vf_coef': 0.05309514905145779, 'use_sde': False, 'sde_sample_freq': -1, 
+             'policy_kwargs': {'log_std_init': -0.19949071177728167, 'net_arch': net_arch["small"], 'activation_fn': activation_fn["tanh"], 'ortho_init': False}}
+
+            # best param encoder
+            {'batch_size': 8, 'n_steps': 16, 'gamma': 0.9999, 'learning_rate': 1e-05, 'ent_coef': 1.975112074548225e-07, 'clip_range': 0.2, 'n_epochs': 10, 'gae_lambda': 0.98,
+                'max_grad_norm': 0.9, 'vf_coef': 0.8531920147092136, 'net_arch': 'small', 'log_std_init': -0.5254574727108507, 'use_sde': False, 'ortho_init': True, 'activation_fn': 'leaky_relu'}
+
+                          
+            model = PPO("MlpPolicy", env, verbose=1, **best_param)
         
         auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
-        save_checkpoint = CheckpointCallback(save_freq=n_step//2, save_path=log_dir,
+        save_checkpoint = CheckpointCallback(save_freq=100000, save_path=log_dir,
                                              name_prefix=name_model + "_checkpoint", verbose=1)
-        callbacks = StopTrainingOnMaxTimestep(n_step, 1)
+        # callbacks = StopTrainingOnMaxTimestep(n_step, 1)
         # set up model in learning mode with goal number of timesteps to complete
-        model.learn(total_timesteps=n_step, callback=[auto_save_callback, save_checkpoint, callbacks])
+        model.learn(total_timesteps=n_step)
 
         # Save the agent
         model.save(os.path.join(log_dir,  name_model))

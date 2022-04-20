@@ -1,29 +1,28 @@
+import pandas as pd
+from torch import nn as nn
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+import optuna
+import numpy as np
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from time import sleep
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.monitor import Monitor
+from myWrappers import MyMonitor, NormalizeObservation, AutoEncoderWrapper
+from stable_baselines3.common.callbacks import EvalCallback
+from myCallbacks import StopTrainingOnMaxTimestep
+from stable_baselines3.common.evaluation import evaluate_policy
+import torch
+from pyvirtualdisplay import Display
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3 import PPO
+import gym
+import os
+import gym_donkeycar
+import uuid
+import argparse
 import sys
 # setting path
 sys.path.append('../reinforcement_learning')
-import argparse
-import uuid
-import gym_donkeycar
-import os
-import gym
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
-from pyvirtualdisplay import Display
-import torch
-from stable_baselines3.common.evaluation import evaluate_policy
-from myCallbacks import StopTrainingOnMaxTimestep
-from stable_baselines3.common.callbacks import EvalCallback
-from myWrappers import MyMonitor, NormalizeObservation, AutoEncoderWrapper
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.env_util import make_vec_env
-from time import sleep
-
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import numpy as np
-import optuna
-from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
-from torch import nn as nn
-import pandas as pd
 
 
 def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
@@ -35,7 +34,7 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
     batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64, 128, 256, 512])
     n_steps = trial.suggest_categorical("n_steps", [8, 16, 32, 64, 128, 256, 512, 1024, 2048])
     gamma = trial.suggest_categorical("gamma", [0.9, 0.95, 0.98, 0.99, 0.995, 0.999, 0.9999])
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-2)
+    learning_rate = trial.suggest_categorical("learning_rate", [1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2])
     lr_schedule = "constant"
     # Uncomment to enable learning rate schedule
     #lr_schedule = trial.suggest_categorical('lr_schedule', ['linear', 'constant'])
@@ -47,31 +46,34 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
     vf_coef = trial.suggest_uniform("vf_coef", 0, 1)
     net_arch = trial.suggest_categorical("net_arch", ["small", "medium"])
     # Uncomment for gSDE (continuous actions)
-    # log_std_init = trial.suggest_uniform("log_std_init", -4, 1)
+    log_std_init = trial.suggest_uniform("log_std_init", -4, 1)
+    use_sde = trial.suggest_categorical('use_sde', [False, True])
+    sde_sample_freq = -1
     # Uncomment for gSDE (continuous action)
-    sde_sample_freq = trial.suggest_categorical("sde_sample_freq", [-1, 8, 16, 32, 64, 128, 256])
     # Orthogonal initialization
     ortho_init = False
-    # ortho_init = trial.suggest_categorical('ortho_init', [False, True])
-    # activation_fn = trial.suggest_categorical('activation_fn', ['tanh', 'relu', 'elu', 'leaky_relu'])
-    activation_fn = trial.suggest_categorical("activation_fn", ["tanh", "relu"])
+    ortho_init = trial.suggest_categorical('ortho_init', [False, True])
+    activation_fn = trial.suggest_categorical('activation_fn', ['tanh', 'relu', 'elu', 'leaky_relu'])
+    # activation_fn = trial.suggest_categorical("activation_fn", ["tanh", "relu"])
 
     # TODO: account when using multiple envs
-    if batch_size > n_steps:
-        batch_size = n_steps
+    # if batch_size > n_steps:
+    #     batch_size = n_steps
+    if use_sde:
+        sde_sample_freq = trial.suggest_categorical("sde_sample_freq", [8, 16, 32, 64, 128])
 
     # if lr_schedule == "linear":
     #     learning_rate = linear_schedule(learning_rate)
 
     # Independent networks usually work best
     # when not working with images
-    # net_arch = {
-    #     "small": [dict(pi=[64, 64], vf=[64, 64])],
-    #     "medium": [dict(pi=[256, 256], vf=[256, 256])],
-    # }[net_arch]
+    net_arch = {
+        "small": [dict(pi=[64, 64], vf=[64, 64])],
+        "medium": [dict(pi=[256, 256], vf=[256, 256])],
+    }[net_arch]
 
-    # activation_fn = {"sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "relu": nn.ReLU,
-    #                  "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}[activation_fn]
+    activation_fn = {"sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "relu": nn.ReLU,
+                     "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}[activation_fn]
 
     result = {
         "n_steps": n_steps,
@@ -84,19 +86,20 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
         "gae_lambda": gae_lambda,
         "max_grad_norm": max_grad_norm,
         "vf_coef": vf_coef,
+        "use_sde": use_sde,
         "sde_sample_freq": sde_sample_freq,
-        # "policy_kwargs": dict(
-        #     log_std_init=log_std_init,
-        #     net_arch=net_arch,
-        #     activation_fn=activation_fn,
-        #     ortho_init=ortho_init,
-        # ),
+        "policy_kwargs": dict(
+            log_std_init=log_std_init,
+            net_arch=net_arch,
+            activation_fn=activation_fn,
+            ortho_init=ortho_init,
+        ),
     }
     print(result)
     # path_ = "/content/MYgdrive/MyDrive/ColabNotebooks/models/"
     env = gym.make(args.env_name, **conf)
-    env = MyMonitor(env, args.log_dir , "PPO_tuning")
-    env = AutoEncoderWrapper(env, os.path.join(args.log_dir, "encoder_1000.pkl"))
+    env = MyMonitor(env, args.log_dir , "PPO_tuning_train")
+    env = AutoEncoderWrapper(env, os.path.join(args.log_dir, "encoder_1000_large.pkl"))
     #env = NormalizeObservation(env)
     model = PPO("MlpPolicy", env, **result)
 
@@ -104,19 +107,20 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
     try:
         model.learn(args.n_step, callback=stopTrainCallback)
         model.env.close()
-        
+
     except (AssertionError, ValueError) as e:
         model.env.close()
     sleep(5)
     print("EVALUATION...")
-    
+
     env_eval = gym.make(args.env_name, **conf)
     env_eval = Monitor(env_eval, args.log_dir)
-    env_eval = AutoEncoderWrapper(env_eval, os.path.join(args.log_dir, "encoder_1000.pkl"))
-
+    env_eval = MyMonitor(env_eval, args.log_dir , "PPO_tuning_test")
+    env_eval = AutoEncoderWrapper(env_eval, os.path.join(args.log_dir, "encoder_1000_large.pkl"))
     #env_eval = NormalizeObservation(env_eval)
+
     mean_reward = 0.0
-    for _ in range(5):
+    for _ in range(3):
         time_step = 0
         obs = env_eval.reset()
         done = False
@@ -126,18 +130,17 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
             action, _states = model.predict(obs)
             obs, reward, done, info = env_eval.step(action)
             rewards.append(reward)
-            if time_step >= args.n_step:
+            if time_step >= args.n_step / 2:
                 print(
-                    f" Stopping EVALUATION with a total of {time_step} steps because the PPO model reached max_timestep={args.n_step}")
+                    f" Stopping EVALUATION with a total of {time_step} steps because the PPO model reached max_timestep={args.n_step/2}")
                 done = True
         mean_reward += np.sum(rewards)
-    mean_reward = mean_reward / 5.0
+    mean_reward = mean_reward / 3.0
     print("Mean reward ", mean_reward)
 
     env_eval.close()
 
     return mean_reward
-
 
 
 if __name__ == "__main__":
@@ -155,12 +158,12 @@ if __name__ == "__main__":
         help="path to unity simulator. maybe be left at manual if you would like to start the sim on your own.",
     )
     parser.add_argument("--port", type=int, default=9091, help="port to use for tcp")
-    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0",help="name of donkey sim environment")
+    parser.add_argument("--env_name", type=str, default="donkey-generated-track-v0", help="name of donkey sim environment")
     parser.add_argument("--server", action="store_true", help="agent run on server, need virtual display")
     parser.add_argument("--host", type=str, default="localhost", help="ip localhost")
     parser.add_argument("--log_dir", type=str, default="./models/", help="location of log dir")
     parser.add_argument("--name_model", type=str, default="PPO", help="location of log dir")
-    parser.add_argument("--n_step", type=int, default=500, help="port to use for tcp")
+    parser.add_argument("--n_step", type=int, default=1000, help="port to use for tcp")
 
     global args
     args = parser.parse_args()
@@ -193,7 +196,7 @@ if __name__ == "__main__":
         "guid": str(uuid.uuid4()),
         "max_cte": 1.5,
         "headless": args.server,
-        "log_level": 60
+        "log_level": 40
     }
 
     # make gym env
@@ -207,12 +210,17 @@ if __name__ == "__main__":
     # env = DummyVecEnv(envs)
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(sample_ppo_params, n_trials=50)
+    study.optimize(sample_ppo_params, n_trials=30)
     trial = study.best_trial
     print("\n\nBEST Reward: {}".format(trial.value))
     print("Best hyperparameters: {}".format(trial.params))
+
+    fig = optuna.visualization.plot_optimization_history(study)
+    fig.write_image(str(args.log_dir) + str(args.name_model) + "_history.png")
+
+    fig1 = optuna.visualization.plot_param_importances(study)
+    fig1.write_image(str(args.log_dir) + str(args.name_model) + "_param_importances.png")
     print("STOP")
     print("done tuning")
     if args.server:
         display.stop()
-

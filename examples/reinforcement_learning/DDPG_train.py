@@ -101,79 +101,49 @@ if __name__ == "__main__":
         "log_level": 40
     }
 
-    if args.test:
+       # Create the vectorized environment
+    env = gym.make(args.env_name, **conf)
+    env = MyMonitor(env, log_dir, name_model)
+    env = Monitor(env, log_dir)
+    # env = ActionClipWrapper(env)
+    if args.encoder:
+        env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
+        # env = AutoEncoderHistoryWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"),
+        #                                 left_steering=-0.5, right_steering=0.5)
+    else:
+        env = NormalizeObservation(env)
+    # env = SteeringSmoothWrapper(env)
 
-        # Make an environment test our trained policy
-        env = gym.make(args.env_name, **conf)
-        env = MyMonitor(env, log_dir, name_model+"_test")
-        if args.encoder:
-            env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
-        else:
-            env = NormalizeObservation(env)
-        env = Monitor(env, log_dir)
-        env = DummyVecEnv([lambda: env])
-
+    print("ENV CREATE")
+    # Multiprocess n_env in 1 process run asynchronus
+    # env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
+    model = None
+    if args.checkpoint:
         model = DDPG.load(os.path.join(log_dir, name_model))
         model.set_env(env)
-        print("Loaded model\n", "-" * 30, "\n", model.policy,"\n", "-" * 30)
-
-        mean_reward = 0.0
-        for _ in range(5):
-            time_step = 0
-            obs = env.reset()
-            done = False
-            rewards = []
-            while not done:
-                time_step += 1
-                action, _states = model.predict(obs)
-                print(action)
-                obs, reward, done, info = env.step(action)
-                rewards.append(reward)
-                if time_step >= args.n_step:
-                    print(
-                        f" Stopping EVALUATION with a total of {time_step} steps because the DDPG model reached max_timestep={args.n_step}")
-                    done = True
-            mean_reward += np.sum(rewards)
-        mean_reward = mean_reward / 5.0
-        print("Mean sum reward ", mean_reward)
-        print("DONE TEST")
-
+        print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
     else:
-        # Create the vectorized environment
-        env = gym.make(args.env_name, **conf)
-        env = MyMonitor(env, log_dir, name_model)
-        #env = NormalizeObservation(env)
-        env = AutoEncoderWrapper(env, os.path.join(log_dir, "encoder_1000.pkl"))
-        env = Monitor(env, log_dir)
-        env = DummyVecEnv([lambda: env])
-        
-        print("ENV CREATE")
-        # Multiprocess n_env in 1 process run asynchronus
-        # env = make_vec_env(env_id=args.env_name, n_envs=2, seed=444, monitor_dir=log_dir, env_kwargs=conf)
-        model = None
-        if args.checkpoint:
-            model = DDPG.load(os.path.join(log_dir, name_model))
-            model.set_env(env)
-            print("Train from checkpoint at: ", os.path.join(log_dir, name_model))
-        else:
-            # create cnn policy
-            # buffer_size_best = 5000
-            best_param = {'batch_size': 32, 'buffer_size': 500000, 'learning_starts': 8411.241114547869,
-                          'gamma': 0.995, 'tau': 0.01, 'learning_rate': 5e-4, 'gradient_steps': 100}
+        # create cnn policy
+        #no encoder
+        # best_param = {{'buffer_size': 1000, 'batch_size': 16, 'gamma': 0.9999, 'learning_rate': 1e-05,
+        #                 'learning_starts': 3022.699701912161, 'tau': 0.01, 'gradient_steps': 100}}
+        # encoder
+        best_param = {'buffer_size': 500000, 'batch_size': 64, 'gamma': 0.95, 'learning_rate': 1e-05,
+                      'learning_starts': 4296.085201572614, 'tau': 0.001, 'gradient_steps': 50}
 
-            model = DDPG("MlpPolicy", env, verbose=1,  **best_param)
+        model = DDPG("MlpPolicy", env, verbose=0,  **best_param)
 
-        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
-        save_checkpoint = CheckpointCallback(save_freq=50000, save_path=log_dir,
-                                             name_prefix=name_model + "_checkpoint", verbose=1)
-        callbacks = StopTrainingOnMaxTimestep(n_step, 1)
-        # set up model in learning mode with goal number of timesteps to complete
-        model.learn(total_timesteps=n_step, callback=[auto_save_callback, save_checkpoint, callbacks])
+    auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=log_dir, name_model=name_model, verbose=0)
+    save_checkpoint = CheckpointCallback(save_freq=100000, save_path=log_dir,
+                                            name_prefix=name_model + "_checkpoint", verbose=1)
+    callbacks = StopTrainingOnMaxTimestep(n_step, 1)
+    # set up model in learning mode with goal number of timesteps to complete
+    model.learn(total_timesteps=n_step, callback=[auto_save_callback, save_checkpoint, callbacks])
 
-        # Save the agent
-        model.save(os.path.join(log_dir,  name_model))
-        print("done training")
-        if args.server:
-            display.stop()
+    # Save the agent
+    model.save(os.path.join(log_dir,  name_model))
+    print("done training")
+    if args.server:
+        display.stop()
 
     env.close()
