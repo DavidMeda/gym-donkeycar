@@ -21,8 +21,18 @@ Install master version of gym donkey car:
 pip install git+https://github.com/tawnkramer/gym-donkeycar
 ```
 
-## Example Usage
+## My Usage
+go to examples/reinforcement_learning/
+#### Train agent 
+```
+python <name_agent>_train.py [--name_model=<name>] [--encoder] [--n_step=<N° step>]
+```
+#### Test agent 
+```
+python <name_agent>_test_eval.py [--name_model=<name>] [--encoder] 
+```
 
+## Example usage
 A short and compact introduction for people who know gym environments,
 but want to understand this one. Simple example code:
 
@@ -110,52 +120,6 @@ Example info:
  'cte': -5.865292,
  'speed': 9.319956,
  'hit': 'none'}
-```
-
-## Environments
-
-- "donkey-warehouse-v0"
-- "donkey-generated-roads-v0"
-- "donkey-avc-sparkfun-v0"
-- "donkey-generated-track-v0"
-- "donkey-roboracingleague-track-v0"
-- "donkey-waveshare-v0"
-- "donkey-minimonaco-track-v0"
-- "donkey-warren-track-v0"
-- "donkey-thunderhill-track-v0"
-- "donkey-circuit-launch-track-v0"
-
-
-## Codestyle
-
-We are using [black codestyle](https://github.com/psf/black) (max line length of 127 characters) together with [isort](https://github.com/timothycrosley/isort) to sort the imports.
-
-**Please run `make format`** to reformat your code. You can check the codestyle using `make check-codestyle` and `make lint`.
-
-## Tests
-
-Type checking with `pytype`:
-
-```
-make type
-```
-
-Codestyle check with `black`, `isort` and `flake8`:
-
-```
-make check-codestyle
-make lint
-```
-
-To run `pytype`, `format` and `lint` in one command:
-```
-make commit-checks
-```
-
-Build the documentation:
-
-```
-make docs
 ```
 
 
